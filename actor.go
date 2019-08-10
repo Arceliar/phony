@@ -1,3 +1,7 @@
+// Gony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
+// Messages should be non-blocking functions of 0 arguments.
+// Message passing is causal: if A sends a message to C, and then later A sends a message to B that causes B to send a message to C, A's message to C will arrive before B's message to C.
+// Message passing is asynchronous with unbounded queues, but with backpressure to pause an Actor that sends to a significantly more congested one.
 package gony
 
 import (
@@ -16,7 +20,8 @@ type IActor interface {
 	SyncExec(func())
 }
 
-// Adds an item to the queue and returns the new queue size
+// Enqueue puts a message on the actor's queue and returns the new queue size.
+// If you want to prevent flooding an actor faster than it can do work, then it's preferable to use SyncExec instead.
 func (a *Actor) Enqueue(f func()) int {
 	if f == nil {
 		panic("tried to send nil message")
@@ -31,12 +36,8 @@ func (a *Actor) Enqueue(f func()) int {
 	return len(a.queue)
 }
 
-func (a *Actor) SyncExec(f func()) {
-	done := make(chan struct{})
-	a.Enqueue(func() { f(); close(done) })
-	<-done
-}
-
+// SendMessageTo tells the Actor to asynchronously send a message to another Actor.
+// Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled to give the destination time to get some work done.
 func (a *Actor) SendMessageTo(destination IActor, message func()) {
 	// Ideally, we would compare lengths atomically, somehow
 	dLen := destination.Enqueue(message)
@@ -49,6 +50,15 @@ func (a *Actor) SendMessageTo(destination IActor, message func()) {
 		destination.Enqueue(func() { close(done) })
 		a.Enqueue(func() { <-done })
 	}
+}
+
+// SyncExec sends a message to an Actor and waits for it to be handled before returning.
+// Actors should *not* use this to send messages to other Actors.
+// It's meant to give outside goroutines a way to give work to Actors without flooding, and to inspect the internal state of structs that need to be accessed via an Actor.
+func (a *Actor) SyncExec(f func()) {
+	done := make(chan struct{})
+	a.Enqueue(func() { f(); close(done) })
+	<-done
 }
 
 func (a *Actor) run() {

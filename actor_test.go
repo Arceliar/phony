@@ -58,25 +58,24 @@ func BenchmarkSendMessageTo(b *testing.B) {
 	<-done
 }
 
-func TestBackpressure(t *testing.T) {
-	var a, b, o Actor
-	// o is just some dummy observer we use to put messages on a/b queues
+func BenchmarkBackpressure(b *testing.B) {
+	var a0, a1, a2 Actor // 3 actors passing messages in a ring
 	done := make(chan struct{})
-	o.SyncExec(func() {
-		for idx := 0; idx < 1024; idx++ {
-			o.SendMessageTo(&a,
+	a0.SyncExec(func() {
+		for idx := 0; idx < b.N; idx++ {
+			a0.SendMessageTo(&a1,
 				func() {
-					a.SendMessageTo(&b,
+					a1.SendMessageTo(&a2,
 						func() {
-							b.SendMessageTo(&o, func() {})
+							a2.SendMessageTo(&a0, func() {})
 						})
 				})
 		}
-		o.SendMessageTo(&a,
+		a0.SendMessageTo(&a1,
 			func() {
-				a.SendMessageTo(&b,
+				a1.SendMessageTo(&a2,
 					func() {
-						b.SendMessageTo(&o, func() { close(done) })
+						a2.SendMessageTo(&a0, func() { close(done) })
 					})
 			})
 	})
