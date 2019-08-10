@@ -10,8 +10,14 @@ type Actor struct {
 	queue   []func()
 }
 
+type IActor interface {
+	Enqueue(func()) int
+	SendMessageTo(IActor, func())
+	SyncExec(func())
+}
+
 // Adds an item to the queue and returns the new queue size
-func (a *Actor) enqueue(f func()) int {
+func (a *Actor) Enqueue(f func()) int {
 	if f == nil {
 		panic("tried to send nil message")
 	}
@@ -27,21 +33,21 @@ func (a *Actor) enqueue(f func()) int {
 
 func (a *Actor) SyncExec(f func()) {
 	done := make(chan struct{})
-	a.enqueue(func() { f(); close(done) })
+	a.Enqueue(func() { f(); close(done) })
 	<-done
 }
 
-func (a *Actor) SendMessageTo(destination *Actor, message func()) {
+func (a *Actor) SendMessageTo(destination IActor, message func()) {
 	// Ideally, we would compare lengths atomically, somehow
-	dLen := destination.enqueue(message)
+	dLen := destination.Enqueue(message)
 	a.mutex.Lock()
 	aLen := len(a.queue)
 	a.mutex.Unlock()
 	if 4*aLen < dLen {
 		// Tried to send to a much larger queue, so add some backpressure
 		done := make(chan struct{})
-		destination.enqueue(func() { close(done) })
-		a.enqueue(func() { <-done })
+		destination.Enqueue(func() { close(done) })
+		a.Enqueue(func() { <-done })
 	}
 }
 

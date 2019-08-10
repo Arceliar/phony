@@ -82,3 +82,27 @@ func TestBackpressure(t *testing.T) {
 	})
 	<-done
 }
+
+func BenchmarkEnqueue(b *testing.B) {
+	var a Actor
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		a.Enqueue(f)
+	}
+	done := make(chan struct{})
+	a.Enqueue(func() { close(done) })
+	<-done // Wait for the worker to finish
+}
+
+func BenchmarkEnqueueDelayRunning(b *testing.B) {
+	var a Actor
+	a.running = true // Prevent the worker from running
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		a.Enqueue(f)
+	}
+	a.running = false // Allow the worker to run again
+	done := make(chan struct{})
+	a.Enqueue(func() { close(done) })
+	<-done // Wait for the worker to finish
+}
