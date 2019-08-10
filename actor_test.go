@@ -63,3 +63,23 @@ func BenchmarkSendTo(b *testing.B) {
 	a.SendTo(&a, func() { close(done) })
 	<-done
 }
+
+func TestBackpressure(t *testing.T) {
+	var a, b, o Actor
+	// o is just some dummy observer we use to put messages on a/b queues
+	ch_a := make(chan struct{})
+	ch_b := make(chan struct{})
+	// Block b to make sure pressure builds
+	o.SendTo(&b, func() { <-ch_b })
+	// Have A spam messages to B
+	for idx := 0; idx < 1024; idx++ {
+		o.SendTo(&a, func() {
+			// The inner call happens in A's worker
+			a.SendTo(&b, func() {})
+		})
+	}
+	o.SendTo(&a, func() { close(ch_a) })
+	// ch_a should now be blocked until ch_b closes
+	close(ch_b)
+	<-ch_a
+}
