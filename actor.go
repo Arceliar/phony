@@ -1,4 +1,4 @@
-// Gony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
+// Packae gony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
 // Messages should be non-blocking functions of 0 arguments.
 // Message passing is causal: if A sends a message to C, and then later A sends a message to B that causes B to send a message to C, A's message to C will arrive before B's message to C.
 // Message passing is asynchronous with unbounded queues, but with backpressure to pause an Actor that sends to a significantly more congested one.
@@ -9,15 +9,18 @@ import (
 )
 
 // An Actor maintans an inbox of messages and processes them 1 at a time.
-// The intent is for the Actor struct to be embedded in other structs, where the other fiels of the struct are only read or modified by the Actor.
+// The intent is for the Actor struct to be embedded in other structs, where the other fields of the struct are only read or modified by the Actor.
 // Messages are meant to be in the form of non-blocking closures.
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
+// An Actor must not be copied after first use.
 type Actor struct {
 	mutex   sync.Mutex
 	running bool
 	queue   []func()
 }
 
+// IActor is the interface satisfied by the Actor type.
+// It's meant so that structs which embed an actor directly can be used with SendMessageTo and the like, rather than trying to depend on the concrete Actor type.
 type IActor interface {
 	Enqueue(func()) int
 	SendMessageTo(IActor, func())

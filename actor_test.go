@@ -33,7 +33,7 @@ func TestSendMessageTo(t *testing.T) {
 	done := make(chan struct{})
 	var results []int
 	for idx := 0; idx < 16; idx++ {
-		n := idx // Becuase idx gets mutated in place
+		n := idx // Because idx gets mutated in place
 		a.SendMessageTo(&a, func() {
 			results = append(results, n)
 		})
