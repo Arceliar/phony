@@ -6,7 +6,7 @@ import (
 	"unsafe"
 )
 
-func TestActOrder(t *testing.T) {
+func TestAct(t *testing.T) {
 	var a Actor
 	done := make(chan struct{})
 	var results []int
@@ -36,8 +36,70 @@ func BenchmarkAct(b *testing.B) {
 	<-done
 }
 
-func TestSendTo(t *testing.T) {
+func TestSendMessageTo(t *testing.T) {
 	var a Actor
+	done := make(chan struct{})
+	var results []int
+	for idx := 0; idx < 16; idx++ {
+		n := idx // Becuase idx gets mutated in place
+		a.SendMessageTo(&a, func() {
+			results = append(results, n)
+		})
+	}
+	a.SendMessageTo(&a, func() { close(done) })
+	<-done
+	for idx, n := range results {
+		if n != idx {
+			t.Errorf("value %d != index %d", n, idx)
+		}
+	}
+}
+
+func BenchmarkSendMessageTo(b *testing.B) {
+	var a Actor
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		a.SendMessageTo(&a, f)
+	}
+	done := make(chan struct{})
+	a.SendMessageTo(&a, func() { close(done) })
+	<-done
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func TestActOrder_old(t *testing.T) {
+	var a Actor_old
+	done := make(chan struct{})
+	var results []int
+	for idx := 0; idx < 16; idx++ {
+		n := idx // Because idx gets mutated in place
+		a.Act(func() {
+			results = append(results, n)
+		})
+	}
+	a.Act(func() { close(done) })
+	<-done
+	for idx, n := range results {
+		if n != idx {
+			t.Errorf("value %d != index %d", n, idx)
+		}
+	}
+}
+
+func BenchmarkAct_old(b *testing.B) {
+	var a Actor_old
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		a.Act(f)
+	}
+	done := make(chan struct{})
+	a.Act(func() { close(done) })
+	<-done
+}
+
+func TestSendTo_old(t *testing.T) {
+	var a Actor_old
 	done := make(chan struct{})
 	var results []int
 	for idx := 0; idx < 16; idx++ {
@@ -55,8 +117,8 @@ func TestSendTo(t *testing.T) {
 	}
 }
 
-func BenchmarkSendTo(b *testing.B) {
-	var a Actor
+func BenchmarkSendTo_old(b *testing.B) {
+	var a Actor_old
 	f := func() {}
 	for i := 0; i < b.N; i++ {
 		a.SendTo(&a, f)
@@ -66,8 +128,8 @@ func BenchmarkSendTo(b *testing.B) {
 	<-done
 }
 
-func TestBackpressure(t *testing.T) {
-	var a, b, o Actor
+func TestBackpressure_old(t *testing.T) {
+	var a, b, o Actor_old
 	// o is just some dummy observer we use to put messages on a/b queues
 	ch_a := make(chan struct{})
 	ch_b := make(chan struct{})
@@ -85,6 +147,8 @@ func TestBackpressure(t *testing.T) {
 	close(ch_b)
 	<-ch_a
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 func BenchmarkMutex(b *testing.B) {
 	var mutex sync.Mutex
