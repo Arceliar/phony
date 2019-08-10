@@ -1,7 +1,9 @@
 package gony
 
 import (
+	"sync"
 	"testing"
+	"unsafe"
 )
 
 func TestActOrder(t *testing.T) {
@@ -82,4 +84,35 @@ func TestBackpressure(t *testing.T) {
 	// ch_a should now be blocked until ch_b closes
 	close(ch_b)
 	<-ch_a
+}
+
+func BenchmarkMutex(b *testing.B) {
+	var mutex sync.Mutex
+	for i := 0; i < b.N; i++ {
+		mutex.Lock()
+		mutex.Unlock()
+	}
+}
+
+func BenchmarkChannel(b *testing.B) {
+	in := make(chan chan struct{}, 1024)
+	go func() {
+		for ch := range in {
+			close(ch)
+		}
+	}()
+	var ch chan struct{}
+	for i := 0; i < b.N; i++ {
+		ch = make(chan struct{})
+		in <- ch
+	}
+	close(in)
+	<-ch
+}
+
+func TestUnsafePointer(t *testing.T) {
+	var p unsafe.Pointer
+	if p != nil {
+		t.Errorf("Expected nil, got %v", p)
+	}
 }

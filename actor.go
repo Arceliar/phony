@@ -15,6 +15,9 @@ This appears to be safe (deadlock free) and gives the receiver time to finish so
 
 Then normal go code acting from the outside would need to use similar tricks (maybe we provide helpers to make it easier) to block until a message is handled.
 
+OK, that's more-or-less implemented now, so the next step is to use atomic CAS operations
+(since those should be faster than mutexes at least)
+
 */
 
 type Actor struct {
