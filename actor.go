@@ -1,4 +1,4 @@
-// Packae gony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
+// Package gony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
 // Messages should be non-blocking functions of 0 arguments.
 // Message passing is causal: if A sends a message to C, and then later A sends a message to B that causes B to send a message to C, A's message to C will arrive before B's message to C.
 // Message passing is asynchronous with unbounded queues, but with backpressure to pause an Actor that sends to a significantly more congested one.
