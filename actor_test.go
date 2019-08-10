@@ -4,18 +4,15 @@ import (
 	"testing"
 )
 
-func TestAct(t *testing.T) {
+func TestSyncExec(t *testing.T) {
 	var a Actor
-	done := make(chan struct{})
 	var results []int
 	for idx := 0; idx < 16; idx++ {
 		n := idx // Because idx gets mutated in place
-		a.Act(func() {
+		a.SyncExec(func() {
 			results = append(results, n)
 		})
 	}
-	a.Act(func() { close(done) })
-	<-done
 	for idx, n := range results {
 		if n != idx {
 			t.Errorf("value %d != index %d", n, idx)
@@ -23,15 +20,12 @@ func TestAct(t *testing.T) {
 	}
 }
 
-func BenchmarkAct(b *testing.B) {
+func BenchmarkSyncExec(b *testing.B) {
 	var a Actor
 	f := func() {}
 	for i := 0; i < b.N; i++ {
-		a.Act(f)
+		a.SyncExec(f)
 	}
-	done := make(chan struct{})
-	a.Act(func() { close(done) })
-	<-done
 }
 
 func TestSendMessageTo(t *testing.T) {
@@ -67,19 +61,24 @@ func BenchmarkSendMessageTo(b *testing.B) {
 func TestBackpressure(t *testing.T) {
 	var a, b, o Actor
 	// o is just some dummy observer we use to put messages on a/b queues
-	ch_a := make(chan struct{})
-	ch_b := make(chan struct{})
-	// Block b to make sure pressure builds
-	o.SendMessageTo(&b, func() { <-ch_b })
-	// Have A spam messages to B
-	for idx := 0; idx < 1024; idx++ {
-		o.SendMessageTo(&a, func() {
-			// The inner call happens in A's worker
-			a.SendMessageTo(&b, func() {})
-		})
-	}
-	o.SendMessageTo(&a, func() { close(ch_a) })
-	// ch_a should now be blocked until ch_b closes
-	close(ch_b)
-	<-ch_a
+	done := make(chan struct{})
+	o.SyncExec(func() {
+		for idx := 0; idx < 1024; idx++ {
+			o.SendMessageTo(&a,
+				func() {
+					a.SendMessageTo(&b,
+						func() {
+							b.SendMessageTo(&o, func() {})
+						})
+				})
+		}
+		o.SendMessageTo(&a,
+			func() {
+				a.SendMessageTo(&b,
+					func() {
+						b.SendMessageTo(&o, func() { close(done) })
+					})
+			})
+	})
+	<-done
 }

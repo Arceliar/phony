@@ -5,48 +5,54 @@ import (
 )
 
 type Actor struct {
-	mutex  sync.Mutex
-	acting bool
-	queue  []func()
+	mutex   sync.Mutex
+	running bool
+	queue   []func()
+}
+
+// Adds an item to the queue and returns the new queue size
+func (a *Actor) enqueue(f func()) int {
+	if f == nil {
+		panic("tried to send nil message")
+	}
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+	a.queue = append(a.queue, f)
+	if !a.running {
+		a.running = true
+		go a.run()
+	}
+	return len(a.queue)
+}
+
+func (a *Actor) SyncExec(f func()) {
+	done := make(chan struct{})
+	a.enqueue(func() { f(); close(done) })
+	<-done
 }
 
 func (a *Actor) SendMessageTo(destination *Actor, message func()) {
 	// Ideally, we would compare lengths atomically, somehow
-	ch := make(chan struct{})
-	f := func() { message(); close(ch) }
-	destination.mutex.Lock()
-	dLen := len(destination.queue)
-	destination.queue = append(destination.queue, f)
-	if !destination.acting {
-		destination.acting = true
-		go destination.doActions()
-	}
-	destination.mutex.Unlock()
+	dLen := destination.enqueue(message)
 	a.mutex.Lock()
-	if len(a.queue) < 4*dLen {
-		a.queue = append(a.queue, func() { <-ch })
-	}
+	aLen := len(a.queue)
 	a.mutex.Unlock()
-}
-
-func (a *Actor) Act(f func()) {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
-	a.queue = append(a.queue, f)
-	if !a.acting {
-		a.acting = true
-		go a.doActions()
+	if 4*aLen < dLen {
+		// Tried to send to a much larger queue, so add some backpressure
+		done := make(chan struct{})
+		destination.enqueue(func() { close(done) })
+		a.enqueue(func() { <-done })
 	}
 }
 
-func (a *Actor) doActions() {
+func (a *Actor) run() {
 	for {
 		var f func()
 		a.mutex.Lock()
 		if len(a.queue) > 0 {
 			f, a.queue = a.queue[0], a.queue[1:]
 		} else {
-			a.acting = false
+			a.running = false
 		}
 		a.mutex.Unlock()
 		if f != nil {
