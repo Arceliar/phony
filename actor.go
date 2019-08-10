@@ -8,6 +8,10 @@ import (
 	"sync"
 )
 
+// An Actor maintans an inbox of messages and processes them 1 at a time.
+// The intent is for the Actor struct to be embedded in other structs, where the other fiels of the struct are only read or modified by the Actor.
+// Messages are meant to be in the form of non-blocking closures.
+// It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 type Actor struct {
 	mutex   sync.Mutex
 	running bool
