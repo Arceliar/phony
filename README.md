@@ -1,5 +1,7 @@
 # gony
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/Arceliar/gony)](https://goreportcard.com/report/github.com/Arceliar/gony)
+
 Gony is a small actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language.
 
 Actors send and receive messages in the form of functions of 0 arguments with no return value. These are typically closures that read or modify values only reachable by the actor, and may cause the actor to send messages to other actors.
