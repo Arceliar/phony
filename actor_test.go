@@ -108,30 +108,34 @@ func BenchmarkEnqueueDelayRunning(b *testing.B) {
 }
 
 func BenchmarkChannelsSync(b *testing.B) {
-	ch := make(chan struct{})
+	ch := make(chan func())
 	done := make(chan struct{})
 	go func() {
-		defer close(done)
-		for range ch {
+		for f := range ch {
+			f()
 		}
+		close(done)
 	}()
+	f := func() {}
 	for i := 0; i < b.N; i++ {
-		ch <- struct{}{}
+		ch <- f
 	}
 	close(ch)
 	<-done
 }
 
 func BenchmarkChannelsAsync(b *testing.B) {
-	ch := make(chan struct{}, b.N)
+	ch := make(chan func(), b.N)
 	done := make(chan struct{})
 	go func() {
-		defer close(done)
-		for range ch {
+		for f := range ch {
+			f()
 		}
+		close(done)
 	}()
+	f := func() {}
 	for i := 0; i < b.N; i++ {
-		ch <- struct{}{}
+		ch <- f
 	}
 	close(ch)
 	<-done
