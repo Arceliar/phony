@@ -34,13 +34,14 @@ func (a *Actor) Enqueue(f func()) int {
 		panic("tried to send nil message")
 	}
 	a.mutex.Lock()
-	defer a.mutex.Unlock()
 	a.queue = append(a.queue, f)
 	if !a.running {
 		a.running = true
 		go a.run()
 	}
-	return len(a.queue)
+	l := len(a.queue)
+	a.mutex.Unlock()
+	return l
 }
 
 // SendMessageTo tells the Actor to asynchronously send a message to another Actor.
