@@ -14,9 +14,8 @@ import (
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Actor must not be copied after first use.
 type Actor struct {
-	mutex   sync.Mutex
-	running bool
-	queue   []func()
+	mutex sync.Mutex
+	queue []func()
 }
 
 // IActor is the interface satisfied by the Actor type.
@@ -35,12 +34,11 @@ func (a *Actor) Enqueue(f func()) int {
 	}
 	a.mutex.Lock()
 	a.queue = append(a.queue, f)
-	if !a.running {
-		a.running = true
-		go a.run()
-	}
 	l := len(a.queue)
 	a.mutex.Unlock()
+	if l == 1 {
+		go a.run()
+	}
 	return l
 }
 
@@ -75,8 +73,6 @@ func (a *Actor) run() {
 		a.mutex.Lock()
 		if len(a.queue) > 0 {
 			f, a.queue = a.queue[0], a.queue[1:]
-		} else {
-			a.running = false
 		}
 		a.mutex.Unlock()
 		if f != nil {

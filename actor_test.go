@@ -95,15 +95,16 @@ func BenchmarkEnqueue(b *testing.B) {
 
 func BenchmarkEnqueueDelayRunning(b *testing.B) {
 	var a Actor
-	a.running = true // Prevent the worker from running
+	pause := make(chan struct{})
+	a.Enqueue(func() { <-pause }) // Prevent the actor from running
 	f := func() {}
 	for i := 0; i < b.N; i++ {
 		a.Enqueue(f)
 	}
-	a.running = false // Allow the worker to run again
 	done := make(chan struct{})
 	a.Enqueue(func() { close(done) })
-	<-done // Wait for the worker to finish
+	close(pause) // Let the actor do its work
+	<-done       // Wait for the worker to finish
 }
 
 func BenchmarkChannelsSync(b *testing.B) {
