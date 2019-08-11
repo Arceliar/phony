@@ -52,7 +52,7 @@ func (a *Actor) SendMessageTo(destination IActor, message func()) {
 	a.mutex.Lock()
 	aLen := len(a.queue)
 	a.mutex.Unlock()
-	if 4*aLen < dLen {
+	if aLen < dLen/4 {
 		// Tried to send to a much larger queue, so add some backpressure
 		done := make(chan struct{})
 		destination.Enqueue(func() { close(done) })
