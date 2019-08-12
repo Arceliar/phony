@@ -39,6 +39,18 @@ func TestSendMessageTo(t *testing.T) {
 	}
 }
 
+func BenchmarkSendMessageTo(b *testing.B) {
+	var a Actor
+	f := func() {}
+	a.SyncExec(func() {
+		for i := 0; i < b.N; i++ {
+			a.SendMessageTo(&a, f)
+		}
+	})
+	// Wait for the actor to finish
+	a.SyncExec(func() {})
+}
+
 func BenchmarkSyncExec(b *testing.B) {
 	var a Actor
 	f := func() {}
@@ -58,18 +70,6 @@ func BenchmarkBackpressure(b *testing.B) {
 	done := make(chan struct{})
 	a0.Enqueue(func() { a0.SendMessageTo(&a1, func() { close(done) }) })
 	<-done
-}
-
-func BenchmarkSendMessageTo(b *testing.B) {
-	var a Actor
-	f := func() {}
-	a.SyncExec(func() {
-		for i := 0; i < b.N; i++ {
-			a.SendMessageTo(&a, f)
-		}
-	})
-	// Wait for the actor to finish
-	a.SyncExec(func() {})
 }
 
 func BenchmarkEnqueue(b *testing.B) {
@@ -114,23 +114,6 @@ func BenchmarkChannelsSyncExec(b *testing.B) {
 	<-done
 }
 
-func BenchmarkChannels(b *testing.B) {
-	ch := make(chan func())
-	done := make(chan struct{})
-	go func() {
-		for f := range ch {
-			f()
-		}
-		close(done)
-	}()
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		ch <- f
-	}
-	close(ch)
-	<-done
-}
-
 func BenchmarkSmallBufferedChannels(b *testing.B) {
 	ch := make(chan func(), 1)
 	done := make(chan struct{})
@@ -165,7 +148,7 @@ func BenchmarkLargeBufferedChannels(b *testing.B) {
 	<-done
 }
 
-func BenchmarkBufferedChannelsDelayRunning(b *testing.B) {
+func BenchmarkChannelsDelayRunning(b *testing.B) {
 	ch := make(chan func(), b.N)
 	done := make(chan struct{})
 	go func() {
