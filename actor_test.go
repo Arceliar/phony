@@ -1,4 +1,4 @@
-package gony
+package phony
 
 import (
 	"testing"
@@ -84,7 +84,7 @@ func BenchmarkSendMessageTo(b *testing.B) {
 	a.SyncExec(func() {})
 }
 
-func BenchmarkChannelsSyncExec(b *testing.B) {
+func BenchmarkChannelSyncExec(b *testing.B) {
 	ch := make(chan func())
 	done := make(chan struct{})
 	go func() {
@@ -103,8 +103,8 @@ func BenchmarkChannelsSyncExec(b *testing.B) {
 	<-done
 }
 
-func BenchmarkSmallBufferedChannels(b *testing.B) {
-	ch := make(chan func(), 1)
+func BenchmarkChannel(b *testing.B) {
+	ch := make(chan func())
 	done := make(chan struct{})
 	go func() {
 		for f := range ch {
@@ -120,19 +120,19 @@ func BenchmarkSmallBufferedChannels(b *testing.B) {
 	<-done
 }
 
-func BenchmarkLargeBufferedChannels(b *testing.B) {
-	ch := make(chan func(), b.N)
+func BenchmarkBufferedChannel(b *testing.B) {
 	done := make(chan struct{})
 	go func() {
+		ch := make(chan func(), b.N)
+		f := func() {}
+		for i := 0; i < b.N; i++ {
+			ch <- f
+		}
+		close(ch)
 		for f := range ch {
 			f()
 		}
 		close(done)
 	}()
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		ch <- f
-	}
-	close(ch)
 	<-done
 }

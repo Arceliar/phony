@@ -1,8 +1,8 @@
-# gony
+# Phony
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/Arceliar/gony)](https://goreportcard.com/report/github.com/Arceliar/gony)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Arceliar/phony)](https://goreportcard.com/report/github.com/Arceliar/phony)
 
-The "gony" package is a *very* minimal actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language. This was written in a weekend as an exercise/test, to demonstrate how easily the Actor model can be implemented in Go, rather than as something intended for real-world use.
+The "phony" package is a *very* minimal actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language. This was written in a weekend as an exercise/test, to demonstrate how easily the Actor model can be implemented in Go, rather than as something intended for real-world use.
 
 ## Features
 
@@ -18,16 +18,18 @@ The "gony" package is a *very* minimal actor model library for Go, inspired by t
 ```
 goos: linux
 goarch: amd64
-pkg: github.com/Arceliar/gony
-BenchmarkEnqueue-4                 	10000000	       131 ns/op
-BenchmarkSyncExec-4                	 1000000	      1375 ns/op
-BenchmarkBackpressure-4            	10000000	       153 ns/op
-BenchmarkSendMessageTo-4           	10000000	       133 ns/op
-BenchmarkChannelsSyncExec-4        	 1000000	      1099 ns/op
-BenchmarkSmallBufferedChannels-4   	 5000000	       363 ns/op
-BenchmarkLargeBufferedChannels-4   	10000000	       133 ns/op
+pkg: github.com/Arceliar/phony
+BenchmarkEnqueue-4           	100000000	       130 ns/op
+BenchmarkSyncExec-4          	10000000	      1415 ns/op
+BenchmarkBackpressure-4      	30000000	       432 ns/op
+BenchmarkSendMessageTo-4     	100000000	       129 ns/op
+BenchmarkChannelSyncExec-4   	20000000	      1097 ns/op
+BenchmarkChannel-4           	30000000	       427 ns/op
+BenchmarkBufferedChannel-4   	200000000	        75.7 ns/op
 PASS
-ok  	github.com/Arceliar/gony	10.794s
+ok  	github.com/Arceliar/phony	114.943s
 ```
 
-In the above benchmarks, `BenchmarkBackpressure` consists of sending an empty function to an actor as fast as possible, which the actor runs before retrieving the next function. `BenchmarkSmallBufferedChannels` corresponds to the same workflow, but sending those functions over a goroutine with a small (1) buffer. I consider these to be the most relevant benchmarks, as is models performance under load -- it doesn't *really* matter how long things take when they're not under enough load to trigger backpressure or block channels (`BenchmarkSendMessageTo` and `BenchmarkLargeBufferedChannels`), since that implies most time is spent idle and waiting for work.
+In the above benchmarks, `BenchmarkBackpressure` consists of sending an empty function to an actor as fast as possible, which the actor runs before retrieving the next empty function. `BenchmarkChannel` corresponds to the same workflow, but sending those functions over a channel with no buffer (or a very small buffer that easily fills). I consider these to be the most relevant benchmarks, as is models performance under load.
+
+`BenchmarkSendMessageTo` and `BenchmarkBufferedChannel` correspond to cases where the receiving actor does not require backpressure, or the receiving channel is buffered and not full. These correspond most closely to the case where the receiver can do work faster than it is produced.

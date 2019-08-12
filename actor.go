@@ -1,8 +1,8 @@
-// Package gony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
+// Package phony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
 // Messages should be non-blocking functions of 0 arguments.
 // Message passing is causal: if A sends a message to C, and then later A sends a message to B that causes B to send a message to C, A's message to C will arrive before B's message to C.
 // Message passing is asynchronous with unbounded queues, but with backpressure to pause an Actor that sends to a significantly more congested one.
-package gony
+package phony
 
 import (
 	"sync"
@@ -20,10 +20,8 @@ type Actor struct {
 
 // IActor is the interface satisfied by the Actor type.
 // It's meant so that structs which embed an actor directly can be used with SendMessageTo and the like, rather than trying to depend on the concrete Actor type.
-type IActor interface {
+type Enqueuer interface {
 	Enqueue(func()) int
-	SendMessageTo(IActor, func())
-	SyncExec(func())
 }
 
 // Enqueue puts a message on the actor's queue and returns the new queue size.
@@ -44,15 +42,12 @@ func (a *Actor) Enqueue(f func()) int {
 }
 
 // SendMessageTo should only be called on an actor by itself, and sends a message to another actor.
-// Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled to give the destination time to get some work done.
-func (a *Actor) SendMessageTo(destination IActor, message func()) {
-	// Ideally, we would compare lengths atomically, somehow
+// Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled until the destination has gotten some work done.
+func (a *Actor) SendMessageTo(destination Enqueuer, message func()) {
 	dLen := destination.Enqueue(message)
-	a.mutex.Lock()
-	aLen := len(a.queue)
-	a.mutex.Unlock()
-	if aLen < dLen/4 {
-		// Tried to send to a much larger queue, so add some backpressure
+	if dLen > 128 && destination != a {
+		// Tried to send to someone else, with a large queue, so apply some backpressure
+		// Sending backpressure to ourself is perfectly safe, but it's pointless extra work that only serves to slow things down even more, so we don't bother
 		done := make(chan struct{})
 		destination.Enqueue(func() { close(done) })
 		a.Enqueue(func() { <-done })
