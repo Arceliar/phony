@@ -7,7 +7,7 @@ import (
 func TestSyncExec(t *testing.T) {
 	var a Actor
 	var results []int
-	for idx := 0; idx < 16; idx++ {
+	for idx := 0; idx < 1024; idx++ {
 		n := idx // Because idx gets mutated in place
 		a.SyncExec(func() {
 			results = append(results, n)
@@ -24,12 +24,14 @@ func TestSendMessageTo(t *testing.T) {
 	var a Actor
 	done := make(chan struct{})
 	var results []int
-	for idx := 0; idx < 16; idx++ {
-		n := idx // Because idx gets mutated in place
-		a.SendMessageTo(&a, func() {
-			results = append(results, n)
-		})
-	}
+	a.SyncExec(func() {
+		for idx := 0; idx < 1024; idx++ {
+			n := idx // Because idx gets mutated in place
+			a.SendMessageTo(&a, func() {
+				results = append(results, n)
+			})
+		}
+	})
 	a.SendMessageTo(&a, func() { close(done) })
 	<-done
 	for idx, n := range results {
