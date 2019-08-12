@@ -95,7 +95,7 @@ func BenchmarkEnqueueDelayRunning(b *testing.B) {
 	a.SyncExec(func() {})
 }
 
-func BenchmarkChannelsSync(b *testing.B) {
+func BenchmarkChannels(b *testing.B) {
 	ch := make(chan func())
 	done := make(chan struct{})
 	go func() {
@@ -112,7 +112,7 @@ func BenchmarkChannelsSync(b *testing.B) {
 	<-done
 }
 
-func BenchmarkChannelsAsync(b *testing.B) {
+func BenchmarkBufferedChannels(b *testing.B) {
 	ch := make(chan func(), b.N)
 	done := make(chan struct{})
 	go func() {
@@ -129,16 +129,16 @@ func BenchmarkChannelsAsync(b *testing.B) {
 	<-done
 }
 
-func BenchmarkChannelsAsyncDelayRunning(b *testing.B) {
+func BenchmarkBufferedChannelsDelayRunning(b *testing.B) {
 	ch := make(chan func(), b.N)
 	done := make(chan struct{})
 	go func() {
-		<-done
 		for f := range ch {
 			f()
 		}
 		close(done)
 	}()
+  ch<-func(){<-done}
 	f := func() {}
 	for i := 0; i < b.N; i++ {
 		ch <- f
