@@ -59,26 +59,15 @@ func BenchmarkSendMessageTo(b *testing.B) {
 }
 
 func BenchmarkBackpressure(b *testing.B) {
-	var a0, a1, a2 Actor // 3 actors passing messages in a ring
-	done := make(chan struct{})
+	var a0, a1 Actor
+	msg := func() {}
 	a0.SyncExec(func() {
 		for idx := 0; idx < b.N; idx++ {
-			a0.SendMessageTo(&a1,
-				func() {
-					a1.SendMessageTo(&a2,
-						func() {
-							a2.SendMessageTo(&a0, func() {})
-						})
-				})
+			a0.SendMessageTo(&a1, msg)
 		}
-		a0.SendMessageTo(&a1,
-			func() {
-				a1.SendMessageTo(&a2,
-					func() {
-						a2.SendMessageTo(&a0, func() { close(done) })
-					})
-			})
 	})
+	done := make(chan struct{})
+	a0.Enqueue(func() { a0.SendMessageTo(&a1, func() { close(done) }) })
 	<-done
 }
 
