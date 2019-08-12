@@ -42,7 +42,7 @@ func (a *Actor) Enqueue(f func()) int {
 	return l
 }
 
-// SendMessageTo tells the Actor to asynchronously send a message to another Actor.
+// SendMessageTo should only be called on an actor by itself, and sends a message to another actor.
 // Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled to give the destination time to get some work done.
 func (a *Actor) SendMessageTo(destination IActor, message func()) {
 	// Ideally, we would compare lengths atomically, somehow

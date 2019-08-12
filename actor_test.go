@@ -50,12 +50,13 @@ func TestSendMessageTo(t *testing.T) {
 func BenchmarkSendMessageTo(b *testing.B) {
 	var a Actor
 	f := func() {}
-	for i := 0; i < b.N; i++ {
-		a.SendMessageTo(&a, f)
-	}
-	done := make(chan struct{})
-	a.SendMessageTo(&a, func() { close(done) })
-	<-done
+	a.SyncExec(func() {
+		for i := 0; i < b.N; i++ {
+			a.SendMessageTo(&a, f)
+		}
+	})
+	// Wait for the actor to finish
+	a.SyncExec(func() {})
 }
 
 func BenchmarkBackpressure(b *testing.B) {
@@ -77,9 +78,8 @@ func BenchmarkEnqueue(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		a.Enqueue(f)
 	}
-	done := make(chan struct{})
-	a.Enqueue(func() { close(done) })
-	<-done // Wait for the worker to finish
+	// Wait for the actor to finish
+	a.SyncExec(func() {})
 }
 
 func BenchmarkEnqueueDelayRunning(b *testing.B) {
@@ -90,10 +90,9 @@ func BenchmarkEnqueueDelayRunning(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		a.Enqueue(f)
 	}
-	done := make(chan struct{})
-	a.Enqueue(func() { close(done) })
 	close(pause) // Let the actor do its work
-	<-done       // Wait for the worker to finish
+	// Wait for the actor to finish
+	a.SyncExec(func() {})
 }
 
 func BenchmarkChannelsSync(b *testing.B) {
