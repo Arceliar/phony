@@ -128,3 +128,22 @@ func BenchmarkChannelsAsync(b *testing.B) {
 	close(ch)
 	<-done
 }
+
+func BenchmarkChannelsAsyncDelayRunning(b *testing.B) {
+	ch := make(chan func(), b.N)
+	done := make(chan struct{})
+	go func() {
+		<-done
+		for f := range ch {
+			f()
+		}
+		close(done)
+	}()
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		ch <- f
+	}
+	close(ch)
+	done <- struct{}{}
+	<-done
+}
