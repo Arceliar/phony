@@ -138,7 +138,7 @@ func BenchmarkBufferedChannelsDelayRunning(b *testing.B) {
 		}
 		close(done)
 	}()
-  ch<-func(){<-done}
+	ch <- func() { <-done }
 	f := func() {}
 	for i := 0; i < b.N; i++ {
 		ch <- f
