@@ -33,10 +33,11 @@ func (a *Actor) Enqueue(f func()) int {
 		panic("tried to send nil message")
 	}
 	a.mutex.Lock()
+	run := a.queue == nil
 	a.queue = append(a.queue, f)
 	l := len(a.queue)
 	a.mutex.Unlock()
-	if l == 1 {
+	if run {
 		go a.run()
 	}
 	return l
@@ -73,6 +74,8 @@ func (a *Actor) run() {
 		a.mutex.Lock()
 		if len(a.queue) > 0 {
 			f, a.queue = a.queue[0], a.queue[1:]
+		} else {
+			a.queue = nil
 		}
 		a.mutex.Unlock()
 		if f != nil {
