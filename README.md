@@ -11,7 +11,7 @@ The "phony" package is a *very* minimal actor model library for Go, inspired by 
 3. Actors with an empty queue have no associated goroutines. Idle actors, including idle cycles of actors, can be garbage collected just like any other struct, with no "poison pill" needed to prevent leaks.
 4. Actors send messages asynchronously and have unbounded queue size -- the goal is no deadlocks, ever. Just be sure that you let the outside part of your code block sending work *to* Actors, and not the other way around.
 5. Backpressure keeps the memory usage from unbounded queues in check, by causing Actors which send messages a flooded recipient to (eventually) pause message handling until the recipient notifies them that it made progress.
-6. It's surprisingly fast (see benchmarks below).
+6. It's surprisingly fast, comparable to sending over channels.
 
 ## Benchmarks
 
