@@ -39,14 +39,12 @@ func TestSendMessageTo(t *testing.T) {
 	}
 }
 
-func BenchmarkSendMessageTo(b *testing.B) {
+func BenchmarkEnqueue(b *testing.B) {
 	var a Actor
 	f := func() {}
-	a.SyncExec(func() {
-		for i := 0; i < b.N; i++ {
-			a.SendMessageTo(&a, f)
-		}
-	})
+	for i := 0; i < b.N; i++ {
+		a.Enqueue(f)
+	}
 	// Wait for the actor to finish
 	a.SyncExec(func() {})
 }
@@ -72,25 +70,14 @@ func BenchmarkBackpressure(b *testing.B) {
 	<-done
 }
 
-func BenchmarkEnqueue(b *testing.B) {
+func BenchmarkSendMessageTo(b *testing.B) {
 	var a Actor
 	f := func() {}
-	for i := 0; i < b.N; i++ {
-		a.Enqueue(f)
-	}
-	// Wait for the actor to finish
-	a.SyncExec(func() {})
-}
-
-func BenchmarkEnqueueDelayRunning(b *testing.B) {
-	var a Actor
-	pause := make(chan struct{})
-	a.Enqueue(func() { <-pause }) // Prevent the actor from running
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		a.Enqueue(f)
-	}
-	close(pause) // Let the actor do its work
+	a.SyncExec(func() {
+		for i := 0; i < b.N; i++ {
+			a.SendMessageTo(&a, f)
+		}
+	})
 	// Wait for the actor to finish
 	a.SyncExec(func() {})
 }
@@ -145,24 +132,5 @@ func BenchmarkLargeBufferedChannels(b *testing.B) {
 		ch <- f
 	}
 	close(ch)
-	<-done
-}
-
-func BenchmarkChannelsDelayRunning(b *testing.B) {
-	ch := make(chan func(), b.N)
-	done := make(chan struct{})
-	go func() {
-		for f := range ch {
-			f()
-		}
-		close(done)
-	}()
-	ch <- func() { <-done }
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		ch <- f
-	}
-	close(ch)
-	done <- struct{}{}
 	<-done
 }
