@@ -19,7 +19,7 @@ type Actor struct {
 	queue []func()
 }
 
-// Enqueuer is the interface for types which allow messages to be queued to run, such as the Actor type.
+// IActor is the interface for Actors, based on their ability to enqueue and send messages.
 // It's meant so that structs which embed an Actor can be used with SendMessageTo and the like, rather than trying to depend on the concrete Actor type.
 type IActor interface {
 	Enqueue(func()) int
