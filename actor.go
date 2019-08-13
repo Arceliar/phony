@@ -8,6 +8,9 @@ import (
 	"sync"
 )
 
+// How large a queue can be before backpressure slows down sending to it.
+const backpressureThreshold = 127
+
 // An Actor maintans an inbox of messages and processes them 1 at a time.
 // The intent is for the Actor struct to be embedded in other structs, where the other fields of the struct are only read or modified by the Actor.
 // Messages are meant to be in the form of non-blocking closures.
@@ -45,7 +48,7 @@ func (a *Actor) Enqueue(f func()) int {
 // Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled until the destination has gotten some work done.
 func (a *Actor) SendMessageTo(destination Enqueuer, message func()) {
 	dLen := destination.Enqueue(message)
-	if dLen > 128 && destination != a {
+	if dLen > backpressureThreshold && destination != a {
 		// Tried to send to someone else, with a large queue, so apply some backpressure
 		// Sending backpressure to ourself is perfectly safe, but it's pointless extra work that only serves to slow things down even more, so we don't bother
 		done := make(chan struct{})
