@@ -2,11 +2,11 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Arceliar/phony)](https://goreportcard.com/report/github.com/Arceliar/phony)
 
-The "phony" package is a *very* minimal actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language. This was written in a weekend as an exercise/test, to demonstrate how easily the Actor model can be implemented in Go, rather than as something intended for real-world use.
+Phony is a *very* minimal actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language. This was written in a weekend as an exercise/test, to demonstrate how easily the Actor model can be implemented in Go, rather than as something intended for real-world use.
 
 ## Features
 
-1. An extremely small code base consisting of about 60 SLOC, not counting tests, which only depends on Go built-ins and the `sync` package from the standard library.
+1. An extremely small code base consisting of about 54 SLOC, not counting comments and tests, which only depends on Go built-ins and the `sync` package from the standard library.
 2. The zero value of an Actor is about 32 bytes on x86_64 and is ready-to-use with no initialization. The intent is to embed it in a struct containing whatever state the Actor is meant to manage.
 3. Actors with an empty queue have no associated goroutines. Idle actors, including idle cycles of actors, can be garbage collected just like any other struct, with no "poison pill" needed to prevent leaks.
 4. Actors send messages asynchronously and have unbounded queue size -- the goal is no deadlocks, ever. Just be sure that you let the outside part of your code block sending work *to* Actors, and not the other way around.
