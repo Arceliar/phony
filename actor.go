@@ -21,8 +21,9 @@ type Actor struct {
 
 // Enqueuer is the interface for types which allow messages to be queued to run, such as the Actor type.
 // It's meant so that structs which embed an Actor can be used with SendMessageTo and the like, rather than trying to depend on the concrete Actor type.
-type Enqueuer interface {
+type IActor interface {
 	Enqueue(func()) int
+	SendMessageTo(IActor, func())
 }
 
 // Enqueue puts a message on the actor's queue and returns the new queue size.
@@ -44,7 +45,7 @@ func (a *Actor) Enqueue(f func()) int {
 
 // SendMessageTo should only be called on an actor by itself, and sends a message to another actor.
 // Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled until the destination has gotten some work done.
-func (a *Actor) SendMessageTo(destination Enqueuer, message func()) {
+func (a *Actor) SendMessageTo(destination IActor, message func()) {
 	dLen := destination.Enqueue(message)
 	if dLen > backpressureThreshold && destination != a {
 		// Tried to send to someone else, with a large queue, so apply some backpressure
