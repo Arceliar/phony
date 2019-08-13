@@ -4,9 +4,7 @@
 // Message passing is asynchronous with unbounded queues, but with backpressure to pause an Actor that sends to a significantly more congested one.
 package phony
 
-import (
-	"sync"
-)
+import "sync"
 
 // How large a queue can be before backpressure slows down sending to it.
 const backpressureThreshold = 127
