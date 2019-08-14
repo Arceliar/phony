@@ -47,6 +47,6 @@ func main() {
 	var n int
 	c.Get(&n)                         // Inspect the actor's internal state
 	fmt.Println("Value from Get:", n) // This likely prints before the Print() lines above have finished -- actors work asynchronously.
-	fmt.Scanln()                      // Wait long enough for these things to actually happen.
+	c.printer.SyncExec(func() {})     // Wait for an actor to handle a message, in this case just to finish printing
 	fmt.Println("Exiting")
 }
