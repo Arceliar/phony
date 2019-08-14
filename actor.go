@@ -14,8 +14,9 @@ const backpressureThreshold = 127
 
 // A message in the queue
 type queueElem struct {
-	msg  func()
-	next unsafe.Pointer // *queueElem, accessed atomically
+	msg   func()
+	next  unsafe.Pointer // *queueElem, accessed atomically
+	count int
 }
 
 // An Actor maintans an inbox of messages and processes them 1 at a time.
@@ -26,7 +27,6 @@ type queueElem struct {
 type Actor struct {
 	head *queueElem     // Used carefully to avoid needing atomics
 	tail unsafe.Pointer // *queueElem, accessed atomically
-	size int32          // Avoids alignment issues with 64-bit values on 32-bit platforms
 }
 
 // IActor is the interface for Actors, based on their ability to enqueue and send messages.
@@ -46,6 +46,7 @@ func (a *Actor) Enqueue(f func()) int {
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
+		q.count = tail.count + 1
 		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
 	} else {
 		// No old tail existed, so no worker is currently running
@@ -53,7 +54,7 @@ func (a *Actor) Enqueue(f func()) int {
 		a.head = q
 		go a.run()
 	}
-	return int(atomic.AddInt32(&a.size, 1))
+	return q.count
 }
 
 // SendMessageTo should only be called on an actor by itself, and sends a message to another actor.
@@ -79,7 +80,6 @@ func (a *Actor) SyncExec(f func()) {
 
 func (a *Actor) run() {
 	for {
-		atomic.AddInt32(&a.size, -1)
 		head := a.head
 		head.msg()
 		for {

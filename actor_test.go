@@ -2,7 +2,14 @@ package phony
 
 import (
 	"testing"
+	"unsafe"
 )
+
+func TestActorSize(t *testing.T) {
+	var a Actor
+	var q queueElem
+	t.Logf("Actor size: %d, message size: %d", unsafe.Sizeof(a), unsafe.Sizeof(q))
+}
 
 func TestSyncExec(t *testing.T) {
 	var a Actor
