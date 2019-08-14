@@ -6,7 +6,7 @@ Phony is a *very* minimal actor model library for Go, inspired by the causal mes
 
 ## Features
 
-1. An extremely small code base consisting of under 100 SLOC, not counting comments and tests, which only depends on Go built-ins and the standard library.
+1. An extremely small code base consisting of under 100 SLOC, not counting comments/tests/examples, which only depends on Go built-ins and the standard library.
 2. The zero value of an Actor is about 40 bytes on x86_64 and is ready-to-use with no initialization. The intent is to embed it in a struct containing whatever state the Actor is meant to manage.
 3. Actors with an empty queue have no associated goroutines. Idle actors, including idle cycles of actors, can be garbage collected just like any other struct, with no "poison pill" needed to prevent leaks.
 4. Actors send messages asynchronously and have unbounded queue size -- the goal is no deadlocks, ever. Just be sure that you let the outside part of your code block sending work *to* Actors, and not the other way around.
