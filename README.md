@@ -7,7 +7,7 @@ Phony is a *very* minimal actor model library for Go, inspired by the causal mes
 ## Features
 
 1. An extremely small code base consisting of under 100 SLOC, not counting comments/tests/examples, which only depends on Go built-ins and the standard library.
-2. The zero value of an Actor is about 24 bytes on x86_64 and is ready-to-use with no initialization. The intent is to embed it in a struct containing whatever state the Actor is meant to manage.
+2. The zero value of an Actor is about 16 bytes on x86_64 and is ready-to-use with no initialization. The intent is to embed it in a struct containing whatever state the Actor is meant to manage.
 3. Actors with an empty queue have no associated goroutines. Idle actors, including idle cycles of actors, can be garbage collected just like any other struct, with no "poison pill" needed to prevent leaks.
 4. Actors send messages asynchronously and have unbounded queue size -- the goal is no deadlocks, ever. Just be sure that you let the outside part of your code block sending work *to* Actors, and not the other way around.
 5. Backpressure keeps the memory usage from unbounded queues in check, by causing Actors which send messages a flooded recipient to (eventually) pause message handling until the recipient notifies them that it made progress.
@@ -19,15 +19,15 @@ Phony is a *very* minimal actor model library for Go, inspired by the causal mes
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkEnqueue-4           	20000000	       114 ns/op
+BenchmarkEnqueue-4           	20000000	        97.7 ns/op
 BenchmarkSyncExec-4          	 1000000	      1346 ns/op
-BenchmarkBackpressure-4      	 5000000	       258 ns/op
-BenchmarkSendMessageTo-4     	20000000	        94.6 ns/op
-BenchmarkChannelSyncExec-4   	 1000000	      1117 ns/op
-BenchmarkChannel-4           	 3000000	       429 ns/op
-BenchmarkBufferedChannel-4   	20000000	        73.4 ns/op
+BenchmarkBackpressure-4      	 5000000	       328 ns/op
+BenchmarkSendMessageTo-4     	20000000	       101 ns/op
+BenchmarkChannelSyncExec-4   	 1000000	      1027 ns/op
+BenchmarkChannel-4           	 3000000	       417 ns/op
+BenchmarkBufferedChannel-4   	20000000	        74.2 ns/op
 PASS
-ok  	github.com/Arceliar/phony	11.801s
+ok  	github.com/Arceliar/phony	12.981s
 ```
 
 In the above benchmarks, `BenchmarkBackpressure` consists of sending an empty function to an actor as fast as possible, which the actor runs before retrieving the next empty function. `BenchmarkChannel` corresponds to the same workflow, but sending those functions over a channel with no buffer (or a very small buffer that easily fills). I consider these to be the most relevant benchmarks, as is models performance under load.
