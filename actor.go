@@ -79,8 +79,7 @@ func (a *Actor) Enqueue(f func()) int {
 // SendMessageTo should only be called on an actor by itself, and sends a message to another actor.
 // Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled until the destination has gotten some work done.
 func (a *Actor) SendMessageTo(destination IActor, message func()) {
-	dLen := destination.Enqueue(message)
-	if dLen > backpressureThreshold && destination != a {
+	if destination.Enqueue(message) > backpressureThreshold && destination != a {
 		// Tried to send to someone else, with a large queue, so apply some backpressure
 		// Sending backpressure to ourself is perfectly safe, but it's pointless extra work that only serves to slow things down even more, so we don't bother
 		done := make(chan struct{})
