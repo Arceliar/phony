@@ -19,15 +19,15 @@ Phony is a *very* minimal actor model library for Go, inspired by the causal mes
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkEnqueue-4           	100000000	       118 ns/op
-BenchmarkSyncExec-4          	10000000	      1428 ns/op
-BenchmarkBackpressure-4      	50000000	       275 ns/op
-BenchmarkSendMessageTo-4     	100000000	       101 ns/op
-BenchmarkChannelSyncExec-4   	20000000	      1096 ns/op
-BenchmarkChannel-4           	30000000	       428 ns/op
-BenchmarkBufferedChannel-4   	200000000	        75.7 ns/op
+BenchmarkEnqueue-4           	20000000	       114 ns/op
+BenchmarkSyncExec-4          	 1000000	      1346 ns/op
+BenchmarkBackpressure-4      	 5000000	       258 ns/op
+BenchmarkSendMessageTo-4     	20000000	        94.6 ns/op
+BenchmarkChannelSyncExec-4   	 1000000	      1117 ns/op
+BenchmarkChannel-4           	 3000000	       429 ns/op
+BenchmarkBufferedChannel-4   	20000000	        73.4 ns/op
 PASS
-ok  	github.com/Arceliar/phony	111.606s
+ok  	github.com/Arceliar/phony	11.801s
 ```
 
 In the above benchmarks, `BenchmarkBackpressure` consists of sending an empty function to an actor as fast as possible, which the actor runs before retrieving the next empty function. `BenchmarkChannel` corresponds to the same workflow, but sending those functions over a channel with no buffer (or a very small buffer that easily fills). I consider these to be the most relevant benchmarks, as is models performance under load.
