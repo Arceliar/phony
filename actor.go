@@ -18,22 +18,6 @@ type queueElem struct {
 	next unsafe.Pointer // *queueElem, accessed atomically
 }
 
-func loadMsg(p *unsafe.Pointer) *queueElem {
-	return (*queueElem)(atomic.LoadPointer(p))
-}
-
-func storeMsg(p *unsafe.Pointer, msg *queueElem) {
-	atomic.StorePointer(p, unsafe.Pointer(msg))
-}
-
-func casMsg(dest *unsafe.Pointer, oldMsg, newMsg *queueElem) bool {
-	return atomic.CompareAndSwapPointer(dest, unsafe.Pointer(oldMsg), unsafe.Pointer(newMsg))
-}
-
-func swapMsg(dest *unsafe.Pointer, newMsg *queueElem) *queueElem {
-	return (*queueElem)(atomic.SwapPointer(dest, unsafe.Pointer(newMsg)))
-}
-
 // An Actor maintans an inbox of messages and processes them 1 at a time.
 // The intent is for the Actor struct to be embedded in other structs, where the other fields of the struct are only read or modified by the Actor.
 // Messages are meant to be in the form of non-blocking closures.
@@ -59,10 +43,10 @@ func (a *Actor) Enqueue(f func()) int {
 		panic("tried to send nil message")
 	}
 	q := &queueElem{msg: f}
-	tail := swapMsg(&a.tail, q)
+	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
-		storeMsg(&tail.next, q)
+		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
@@ -99,12 +83,12 @@ func (a *Actor) run() {
 		head := a.head
 		head.msg()
 		for {
-			a.head = loadMsg(&head.next)
+			a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 			if a.head != nil {
 				// Move to the next message
 				break
 			} else {
-				if !casMsg(&a.tail, head, nil) {
+				if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
 					// The head is not the tail, but there was no head.next when we checked
 					// Somebody must be updating it right now, so try again
 					continue
