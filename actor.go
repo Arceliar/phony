@@ -15,7 +15,7 @@ const backpressureThreshold = 127
 // A message in the queue
 type queueElem struct {
 	msg  func()
-	next unsafe.Pointer
+	next unsafe.Pointer // *queueElem, accessed atomically
 }
 
 func loadMsg(p *unsafe.Pointer) *queueElem {
@@ -30,13 +30,17 @@ func casMsg(dest *unsafe.Pointer, oldMsg, newMsg *queueElem) bool {
 	return atomic.CompareAndSwapPointer(dest, unsafe.Pointer(oldMsg), unsafe.Pointer(newMsg))
 }
 
+func swapMsg(dest *unsafe.Pointer, newMsg *queueElem) *queueElem {
+	return (*queueElem)(atomic.SwapPointer(dest, unsafe.Pointer(newMsg)))
+}
+
 // An Actor maintans an inbox of messages and processes them 1 at a time.
 // The intent is for the Actor struct to be embedded in other structs, where the other fields of the struct are only read or modified by the Actor.
 // Messages are meant to be in the form of non-blocking closures.
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Actor must not be copied after first use.
 type Actor struct {
-	head unsafe.Pointer // *queueElem, accessed atomically
+	head *queueElem     // Used carefully to avoid needing atomics
 	tail unsafe.Pointer // *queueElem, accessed atomically
 	size int32          // Avoids alignment issues with 64-bit values on 32-bit platforms
 }
@@ -55,25 +59,17 @@ func (a *Actor) Enqueue(f func()) int {
 		panic("tried to send nil message")
 	}
 	q := &queueElem{msg: f}
-	for {
-		// No matter what, we need to enqueue it in place of the current tail
-		tail := loadMsg(&a.tail)
-		if !casMsg(&a.tail, tail, q) {
-			// It was updated in the mean time, try again
-			continue
-		}
-		// We updated the tail, now decide what to do about the old tail
-		if tail != nil {
-			//An old tail exists, so update its next pointer to reference q
-			storeMsg(&tail.next, q)
-		} else {
-			// No old tail existed, so no worker is currently running
-			// Update the head to point to q, then start the worker
-			storeMsg(&a.head, q)
-			go a.run()
-		}
-		return int(atomic.AddInt32(&a.size, 1))
+	tail := swapMsg(&a.tail, q)
+	if tail != nil {
+		//An old tail exists, so update its next pointer to reference q
+		storeMsg(&tail.next, q)
+	} else {
+		// No old tail existed, so no worker is currently running
+		// Update the head to point to q, then start the worker
+		a.head = q
+		go a.run()
 	}
+	return int(atomic.AddInt32(&a.size, 1))
 }
 
 // SendMessageTo should only be called on an actor by itself, and sends a message to another actor.
@@ -100,13 +96,12 @@ func (a *Actor) SyncExec(f func()) {
 func (a *Actor) run() {
 	for {
 		atomic.AddInt32(&a.size, -1)
-		head := loadMsg(&a.head)
+		head := a.head
 		head.msg()
 		for {
-			next := loadMsg(&head.next)
-			storeMsg(&a.head, next)
-			if next != nil {
-				// Nothing more to do
+			a.head = loadMsg(&head.next)
+			if a.head != nil {
+				// Move to the next message
 				break
 			} else {
 				if !casMsg(&a.tail, head, nil) {
