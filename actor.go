@@ -36,9 +36,9 @@ func casMsg(dest *unsafe.Pointer, oldMsg, newMsg *queueElem) bool {
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Actor must not be copied after first use.
 type Actor struct {
-	head unsafe.Pointer //*queueElem, accessed atomically
-	tail unsafe.Pointer //*queueElem, accessed atomically
-	size int64
+	size int64          // Accessed atomically, first because of bit alingment issues
+	head unsafe.Pointer // *queueElem, accessed atomically
+	tail unsafe.Pointer // *queueElem, accessed atomically
 }
 
 // IActor is the interface for Actors, based on their ability to enqueue and send messages.
