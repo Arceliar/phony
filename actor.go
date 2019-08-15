@@ -1,7 +1,8 @@
 // Package phony is a small actor model library for Go, inspired by the causal messaging system in the Pony programming language.
-// Messages should be non-blocking functions of 0 arguments.
-// Message passing is causal: if A sends a message to C, and then later A sends a message to B that causes B to send a message to C, A's message to C will arrive before B's message to C.
-// Message passing is asynchronous with unbounded queues, but with backpressure to pause an Actor that sends to a significantly more congested one.
+// An Actor is a lightweight struct that can be embedded in other structs and send messages to anything with a matching interface.
+// Messages are functions of 0 arguments, typically closures, and should not perform blocking operations.
+// Message passing is asynchronous, causal, and fast.
+// Actors are scheduled to prevent messages queues from growing too large, by pausing at safe breakpoints when an Actor detects that it sent something to another Actor whose inbox is flooded.
 package phony
 
 import (
@@ -20,8 +21,9 @@ type queueElem struct {
 }
 
 // An Actor maintans an inbox of messages and processes them 1 at a time.
+// Messages are meant to be in the form of non-blocking functions of 0 arguments, often closures.
 // The intent is for the Actor struct to be embedded in other structs, where the other fields of the struct are only read or modified by the Actor.
-// Messages are meant to be in the form of non-blocking closures.
+// The basic idea is to write functions for the struct that embeds the actor, which create and pass messages to the Actor when called.
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Actor must not be copied after first use.
 type Actor struct {
@@ -30,14 +32,14 @@ type Actor struct {
 }
 
 // IActor is the interface for Actors, based on their ability to enqueue and send messages.
-// It's meant so that structs which embed an Actor can be used with SendMessageTo and the like, rather than trying to depend on the concrete Actor type.
+// It's meant so that structs which embed an Actor can be used as such, rather than trying to depend on the concrete Actor type.
 type IActor interface {
 	Enqueue(func()) int
 	SendMessageTo(IActor, func())
 }
 
-// Enqueue puts a message on the actor's queue and returns the new queue size.
-// If you want to prevent flooding an actor faster than it can do work, then it's preferable to use SyncExec instead.
+// Enqueue puts a message on the Actor's inbox queue and returns the number of messages that have been Enqueued since the inbox was last empty.
+// Enqueue is useful for sending a message to an Actor from non-actor code in cases where synchronization is not needed, and it's used internally by SendMessageTo.
 func (a *Actor) Enqueue(f func()) int {
 	if f == nil {
 		panic("tried to send nil message")
@@ -57,8 +59,8 @@ func (a *Actor) Enqueue(f func()) int {
 	return q.count
 }
 
-// SendMessageTo should only be called on an actor by itself, and sends a message to another actor.
-// Internally, it uses Enqueue and applies backpressure, so if the destination appears to be flooded then this Actor will (eventually) stop being schedled until the destination has gotten some work done.
+// SendMessageTo should normally only be called by the Actor itself, never by another Actor or non-actor code.
+// It's used to send messages to another Actor, and schedules the current Actor to wait for a signal at a safe breakpoint if it sees that the recipient's inbox is flooded.
 func (a *Actor) SendMessageTo(destination IActor, message func()) {
 	if destination.Enqueue(message) > backpressureThreshold && destination != a {
 		// Tried to send to someone else, with a large queue, so apply some backpressure
@@ -69,15 +71,17 @@ func (a *Actor) SendMessageTo(destination IActor, message func()) {
 	}
 }
 
-// SyncExec sends a message to an Actor and waits for it to be handled before returning.
-// Actors should *not* use this to send messages to other Actors.
-// It's meant to give outside goroutines a way to give work to Actors without flooding, and to inspect the internal state of structs that need to be accessed via an Actor.
+// SyncExec sends a message to an Actor using Enqueue, and then waits for it to be handled before returning.
+// Actors should never, under any circumstances, call SyncExec.
+// It's meant exclusively as a convenience function for non-actor code, Enqueue messages without flooding the Actor's inbox.
 func (a *Actor) SyncExec(f func()) {
 	done := make(chan struct{})
 	a.Enqueue(func() { f(); close(done) })
 	<-done
 }
 
+// run is executed when a message is enqueued in an empty inbox, and launches a worker goroutine.
+// The worker goroutine processes messages from the inbox until empty, and then exits.
 func (a *Actor) run() {
 	for {
 		head := a.head
