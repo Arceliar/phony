@@ -27,19 +27,19 @@ func TestSyncExec(t *testing.T) {
 	}
 }
 
-func TestSendMessageTo(t *testing.T) {
+func TestEnqueueFromSelf(t *testing.T) {
 	var a Actor
 	done := make(chan struct{})
 	var results []int
 	a.SyncExec(func() {
 		for idx := 0; idx < 1024; idx++ {
 			n := idx // Because idx gets mutated in place
-			a.SendMessageTo(&a, func() {
+			a.EnqueueFrom(&a, func() {
 				results = append(results, n)
 			})
 		}
 	})
-	a.SendMessageTo(&a, func() { close(done) })
+	a.EnqueueFrom(&a, func() { close(done) })
 	<-done
 	for idx, n := range results {
 		if n != idx {
@@ -56,7 +56,7 @@ func BenchmarkSyncExec(b *testing.B) {
 	}
 }
 
-func BenchmarkSendMessageTo(b *testing.B) {
+func BenchmarkEnqueueFrom(b *testing.B) {
 	var a0, a1 Actor
 	msg := func() {}
 	var count int
@@ -65,29 +65,29 @@ func BenchmarkSendMessageTo(b *testing.B) {
 	f = func() {
 		// Run in a0
 		if count < b.N {
-			a0.SendMessageTo(&a1, msg)
+			a1.EnqueueFrom(&a0, msg)
 			count++
 			// Continue the loop by sending a message to ourself to run the next iteration.
 			// If there's any backpressure from a1, this gives it a chance to apply.
-			a0.SendMessageTo(&a0, f)
+			a0.EnqueueFrom(&a0, f)
 		} else {
-			a0.SendMessageTo(&a1, func() { close(done) })
+			a1.EnqueueFrom(&a0, func() { close(done) })
 		}
 	}
-	a0.Enqueue(f)
+	a0.EnqueueFrom(&a0, f)
 	<-done
 }
 
-func BenchmarkEnqueue(b *testing.B) {
+func BenchmarkEnqueueFromSelf(b *testing.B) {
 	var a0, a1 Actor
 	done := make(chan struct{})
-	a0.Enqueue(func() {
+	a0.EnqueueFrom(&a0, func() {
 		msg := func() {}
 		for idx := 0; idx < b.N; idx++ {
 			// We don't care about backpressure, so we just enqueue the message in a for loop.
-			a1.Enqueue(msg)
+			a1.EnqueueFrom(&a1, msg)
 		}
-		a1.Enqueue(func() { close(done) })
+		a1.EnqueueFrom(&a1, func() { close(done) })
 	})
 	<-done
 }

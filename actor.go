@@ -31,16 +31,15 @@ type Actor struct {
 	tail unsafe.Pointer // *queueElem, accessed atomically
 }
 
-// IActor is the interface for Actors, based on their ability to enqueue and send messages.
+// IActor is the interface for Actors, based on their ability to enqueue a message from another IActor.
 // It's meant so that structs which embed an Actor can be used as such, rather than trying to depend on the concrete Actor type.
 type IActor interface {
-	Enqueue(func()) int
-	SendMessageTo(IActor, func())
+	EnqueueFrom(IActor, func())
 }
 
-// Enqueue puts a message on the Actor's inbox queue and returns the number of messages that have been Enqueued since the inbox was last empty.
-// Enqueue is useful for sending a message to an Actor from non-actor code in cases where synchronization is not needed, and it's used internally by SendMessageTo.
-func (a *Actor) Enqueue(f func()) int {
+// enqueue puts a message on the Actor's inbox queue and returns the number of messages that have been enqueued since the inbox was last empty.
+// If the inbox was empty, then the actor was not already running, so enqueue starts it.
+func (a *Actor) enqueue(f func()) int {
 	if f == nil {
 		panic("tried to send nil message")
 	}
@@ -59,15 +58,14 @@ func (a *Actor) Enqueue(f func()) int {
 	return q.count
 }
 
-// SendMessageTo should normally only be called by the Actor itself, never by another Actor or non-actor code.
-// It's used to send messages to another Actor, and schedules the current Actor to wait for a signal at a safe breakpoint if it sees that the recipient's inbox is flooded.
-func (a *Actor) SendMessageTo(destination IActor, message func()) {
-	if destination.Enqueue(message) > backpressureThreshold && destination != a {
-		// Tried to send to someone else, with a large queue, so apply some backpressure
-		// Sending backpressure to ourself is perfectly safe, but it's pointless extra work that only serves to slow things down even more, so we don't bother
+// EnqueueFrom adds a message to the actor's queue and, if the queue is flooded, signals the sender to pause at a safe point until it receives notification from this Actor that it as made sufficient progress.
+// To send a message, the sender should call this function on the receiver and pass itself as the first argument.
+// A non-Actor that wants to send a message to an Actor may pass that Actor to itself as the first argument.
+func (a *Actor) EnqueueFrom(sender IActor, message func()) {
+	if a.enqueue(message) > backpressureThreshold && sender != a {
 		done := make(chan struct{})
-		destination.Enqueue(func() { close(done) })
-		a.Enqueue(func() { <-done })
+		a.enqueue(func() { close(done) })
+		sender.EnqueueFrom(sender, func() { <-done })
 	}
 }
 
@@ -76,7 +74,7 @@ func (a *Actor) SendMessageTo(destination IActor, message func()) {
 // It's meant exclusively as a convenience function for non-actor code, Enqueue messages without flooding the Actor's inbox.
 func (a *Actor) SyncExec(f func()) {
 	done := make(chan struct{})
-	a.Enqueue(func() { f(); close(done) })
+	a.enqueue(func() { f(); close(done) })
 	<-done
 }
 

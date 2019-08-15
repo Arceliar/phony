@@ -11,9 +11,9 @@ type printer struct {
 	phony.Actor
 }
 
-// It's often convenient to put the receiver of a message in the receiver position of a function call, and then supply the sender as an argument.
+// Functions can be defined to send messages to an Actor from another Actor.
 func (p *printer) Println(from phony.IActor, msg ...interface{}) {
-	from.SendMessageTo(p, func() { fmt.Println(msg...) })
+	p.EnqueueFrom(from, func() { fmt.Println(msg...) })
 }
 
 // It's useful to embed an Actor in a struct whose fields the Actor is responsible for.
@@ -23,9 +23,9 @@ type counter struct {
 	printer *printer
 }
 
-// An Enqueue function tells the actor to do something at some point in the future.
+// An EnqueueFrom itself is useful for asking an actor to do something from non-actor code.
 func (c *counter) Increment() {
-	c.Enqueue(func() { c.count++ })
+	c.EnqueueFrom(c, func() { c.count++ })
 }
 
 // A SyncExec function waits for the actor to finish, and can be used to interrogate an Actor from an outside goroutine. Note that Actors shouldn't use this on eachother, since it blocks, it's just meant for convenience when interfacing with outside code.
@@ -33,9 +33,13 @@ func (c *counter) Get(n *int) {
 	c.SyncExec(func() { *n = c.count })
 }
 
-// Actors can send messages to other Actors.
+// Print sends a message to the counter, telling to to call c.printer.Println
+// Calling Println sends a message to the printer, telling it to print
+// So message sends become function calls.
 func (c *counter) Print() {
-	c.Enqueue(func() { c.printer.Println(c, "The count is:", c.count) })
+	c.EnqueueFrom(c, func() {
+		c.printer.Println(c, "The count is:", c.count)
+	})
 }
 
 func main() {
