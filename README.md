@@ -2,16 +2,20 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Arceliar/phony)](https://goreportcard.com/report/github.com/Arceliar/phony)
 
-Phony is a *very* minimal actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language. This was written in a weekend as an exercise/test, to demonstrate how easily the Actor model can be implemented in Go, rather than as something intended for real-world use.
+Phony is a *very* minimal actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language. This was written in a weekend as an exercise/test, to demonstrate how easily the Actor model can be implemented in Go, rather than as something intended for real-world use. Note that these are Actors running in the local process (as in Pony), not in other processes or on other machines (as in [Erlang](https://www.erlang.org/)).
+
+Phony was written in response to a few places where, in my opinion, idiomatic Go leaves a lot to be desired:
+
+1. Cyclic networks of goroutines that communicate over channels can deadlock, drop messages, or write some manual buffering or scheduling logic to avoid these things (which is often error prone). Or you can rewrite your code to have no cycles, but sometimes the problem at hand is best modeled with the cycles. I don't really like any of these options. Go makes concurrency and communication *easy*, but combining them isn't *safe*.
+2. Goroutines that wait for work from a channel can leak if not signaled to shut down properly, and that shutdown mechanism needs to be manually implemented in most cases. Sometimes it's as easy as ranging over a channel and defering a close, other times it can be a lot more complicated. It's annoying that Go is garbage collected, but it's killer features (goroutines and channels) still need manual management to avoid leaks.
+3. I'm tired of writing infinite for loops over select statements. The code is not reusable and resists composition. Lets say I have some type which normally has a worker goroutine associated with it, sitting in a for loop over a select statement. If I want to embed that type in a new struct, which includes any additional channels that must be selected on, I need to rewrite the entire loop. There's no mechanism to say "and also add this one behavior" without enumerating the full list of behaviors I want from my worker. This is depressing in light of how nicely things behave when a struct anonymously embeds a type, where fields and functions compose beautifully.
 
 ## Features
 
-1. An extremely small code base consisting of under 100 SLOC, not counting comments/tests/examples, which only depends on Go built-ins and the standard library.
-2. The zero value of an Actor is about 16 bytes on x86_64 and is ready-to-use with no initialization. The intent is to embed it in a struct containing whatever state the Actor is meant to manage.
-3. Actors with an empty queue have no associated goroutines. Idle actors, including idle cycles of actors, can be garbage collected just like any other struct, with no "poison pill" needed to prevent leaks.
-4. Actors send messages asynchronously and have unbounded queue size -- the goal is no deadlocks, ever. Just be sure that you let the outside part of your code block sending work *to* Actors, and not the other way around.
-5. Backpressure keeps the memory usage from unbounded queues in check, by causing Actors which send messages a flooded recipient to (eventually) pause message handling until the recipient notifies them that it made progress.
-6. It's surprisingly fast, comparable to sending over channels.
+1. Small implementation, only about 64 lines of code, excluding tests and examples. It depends only on a couple of commonly used standard library packages.
+2. Actors are extremely lightweight, only 16 bytes (on x86_64) when their inbox is empty. An idle Actor has no associated goroutine and is garbage collected just like any other struct, even for cycles of Actors.
+3. Asynchronous message passing between Actors. Unlike networks go goroutines communicating over channels, sending messages between Actors cannot deadlock.
+4. Unbounded inbox sizes are kept small in practice through scheduling. Actors that send to an overworked recipient will pause at a safe point in the future, and wait until signaled that the recipient has caught up.
 
 ## Benchmarks
 
@@ -19,17 +23,14 @@ Phony is a *very* minimal actor model library for Go, inspired by the causal mes
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkEnqueue-4           	20000000	        97.7 ns/op
-BenchmarkSyncExec-4          	 1000000	      1346 ns/op
-BenchmarkBackpressure-4      	 5000000	       328 ns/op
-BenchmarkSendMessageTo-4     	20000000	       101 ns/op
-BenchmarkChannelSyncExec-4   	 1000000	      1027 ns/op
-BenchmarkChannel-4           	 3000000	       417 ns/op
-BenchmarkBufferedChannel-4   	20000000	        74.2 ns/op
+BenchmarkSyncExec-4          	 1000000	      1337 ns/op
+BenchmarkSendMessageTo-4     	10000000	       243 ns/op
+BenchmarkEnqueue-4           	20000000	        98.2 ns/op
+BenchmarkChannelSyncExec-4   	 1000000	      1081 ns/op
+BenchmarkChannel-4           	 3000000	       431 ns/op
+BenchmarkBufferedChannel-4   	10000000	       115 ns/op
 PASS
-ok  	github.com/Arceliar/phony	12.981s
+ok  	github.com/Arceliar/phony	10.216s
 ```
 
-In the above benchmarks, `BenchmarkBackpressure` consists of sending an empty function to an actor as fast as possible, which the actor runs before retrieving the next empty function. `BenchmarkChannel` corresponds to the same workflow, but sending those functions over a channel with no buffer (or a very small buffer that easily fills). I consider these to be the most relevant benchmarks, as is models performance under load.
-
-`BenchmarkSendMessageTo` and `BenchmarkBufferedChannel` correspond to cases where the receiving actor does not require backpressure, or the receiving channel is buffered and not full. These correspond most closely to the case where the receiver can do work faster than it is produced.
+I'd try to explain the benchmarks, but if you're here then presumably you can read Go, so I'd recommend just checking the code to see what they do.

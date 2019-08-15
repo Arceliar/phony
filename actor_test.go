@@ -48,16 +48,6 @@ func TestSendMessageTo(t *testing.T) {
 	}
 }
 
-func BenchmarkEnqueue(b *testing.B) {
-	var a Actor
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		a.Enqueue(f)
-	}
-	// Wait for the actor to finish
-	a.SyncExec(func() {})
-}
-
 func BenchmarkSyncExec(b *testing.B) {
 	var a Actor
 	f := func() {}
@@ -66,29 +56,40 @@ func BenchmarkSyncExec(b *testing.B) {
 	}
 }
 
-func BenchmarkBackpressure(b *testing.B) {
+func BenchmarkSendMessageTo(b *testing.B) {
 	var a0, a1 Actor
 	msg := func() {}
-	a0.SyncExec(func() {
-		for idx := 0; idx < b.N; idx++ {
-			a0.SendMessageTo(&a1, msg)
-		}
-	})
+	var count int
 	done := make(chan struct{})
-	a0.Enqueue(func() { a0.SendMessageTo(&a1, func() { close(done) }) })
+	var f func()
+	f = func() {
+		// Run in a0
+		if count < b.N {
+			a0.SendMessageTo(&a1, msg)
+			count++
+			// Continue the loop by sending a message to ourself to run the next iteration.
+			// If there's any backpressure from a1, this gives it a chance to apply.
+			a0.SendMessageTo(&a0, f)
+		} else {
+			a0.SendMessageTo(&a1, func() { close(done) })
+		}
+	}
+	a0.Enqueue(f)
 	<-done
 }
 
-func BenchmarkSendMessageTo(b *testing.B) {
-	var a Actor
-	f := func() {}
-	a.SyncExec(func() {
-		for i := 0; i < b.N; i++ {
-			a.SendMessageTo(&a, f)
+func BenchmarkEnqueue(b *testing.B) {
+	var a0, a1 Actor
+	done := make(chan struct{})
+	a0.Enqueue(func() {
+		msg := func() {}
+		for idx := 0; idx < b.N; idx++ {
+			// We don't care about backpressure, so we just enqueue the message in a for loop.
+			a1.Enqueue(msg)
 		}
+		a1.Enqueue(func() { close(done) })
 	})
-	// Wait for the actor to finish
-	a.SyncExec(func() {})
+	<-done
 }
 
 func BenchmarkChannelSyncExec(b *testing.B) {
@@ -111,35 +112,39 @@ func BenchmarkChannelSyncExec(b *testing.B) {
 }
 
 func BenchmarkChannel(b *testing.B) {
-	ch := make(chan func())
 	done := make(chan struct{})
+	ch := make(chan func())
 	go func() {
 		for f := range ch {
 			f()
 		}
 		close(done)
 	}()
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		ch <- f
-	}
-	close(ch)
-	<-done
-}
-
-func BenchmarkBufferedChannel(b *testing.B) {
-	done := make(chan struct{})
 	go func() {
-		ch := make(chan func(), b.N)
 		f := func() {}
 		for i := 0; i < b.N; i++ {
 			ch <- f
 		}
 		close(ch)
+	}()
+	<-done
+}
+
+func BenchmarkBufferedChannel(b *testing.B) {
+	done := make(chan struct{})
+	ch := make(chan func(), b.N)
+	go func() {
 		for f := range ch {
 			f()
 		}
 		close(done)
+	}()
+	go func() {
+		f := func() {}
+		for i := 0; i < b.N; i++ {
+			ch <- f
+		}
+		close(ch)
 	}()
 	<-done
 }
