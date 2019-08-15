@@ -69,9 +69,9 @@ func (a *Actor) EnqueueFrom(sender IActor, message func()) {
 	}
 }
 
-// SyncExec sends a message to an Actor using Enqueue, and then waits for it to be handled before returning.
+// SyncExec sends a message to an Actor using EnqueueFrom, and then waits for it to be handled before returning.
 // Actors should never, under any circumstances, call SyncExec.
-// It's meant exclusively as a convenience function for non-actor code, Enqueue messages without flooding the Actor's inbox.
+// It's meant exclusively as a convenience function for non-actor code to send messages and wait for responses without flooding.
 func (a *Actor) SyncExec(f func()) {
 	done := make(chan struct{})
 	a.enqueue(func() { f(); close(done) })
