@@ -58,7 +58,7 @@ func (a *Actor) enqueue(f func()) int {
 	return q.count
 }
 
-// EnqueueFrom adds a message to the actor's queue and, if the queue is flooded, signals the sender to pause at a safe point until it receives notification from this Actor that it as made sufficient progress.
+// EnqueueFrom adds a message to the actor's queue and, if the queue is flooded, signals the sender to pause at a safe point until it receives notification from this Actor that it has made sufficient progress.
 // To send a message, the sender should call this function on the receiver and pass itself as the first argument.
 // A non-Actor that wants to send a message to an Actor may pass that Actor to itself as the first argument.
 func (a *Actor) EnqueueFrom(sender IActor, message func()) {
