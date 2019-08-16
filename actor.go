@@ -69,13 +69,13 @@ func (a *Actor) EnqueueFrom(sender IActor, message func()) {
 	}
 }
 
-// SyncExec sends a message to an Actor using EnqueueFrom, and then waits for it to be handled before returning.
-// Actors should never, under any circumstances, call SyncExec.
-// It's meant exclusively as a convenience function for non-actor code to send messages and wait for responses without flooding.
-func (a *Actor) SyncExec(f func()) {
+// SyncExec sends a message to an Actor using EnqueueFrom, and returns a channel that will be closed when the actor finishes handling the message.
+// Actors should never, under any circumstances, call SyncExec on another Actor and then wait for the channel to close.
+// It's meant exclusively as a convenience function for non-Actor code to send messages, and wait for responses, without flooding.
+func (a *Actor) SyncExec(f func()) chan struct{} {
 	done := make(chan struct{})
 	a.enqueue(func() { f(); close(done) })
-	<-done
+	return done
 }
 
 // run is executed when a message is enqueued in an empty inbox, and launches a worker goroutine.

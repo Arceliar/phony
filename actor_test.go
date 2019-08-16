@@ -16,7 +16,7 @@ func TestSyncExec(t *testing.T) {
 	var results []int
 	for idx := 0; idx < 1024; idx++ {
 		n := idx // Because idx gets mutated in place
-		a.SyncExec(func() {
+		<-a.SyncExec(func() {
 			results = append(results, n)
 		})
 	}
@@ -29,9 +29,8 @@ func TestSyncExec(t *testing.T) {
 
 func TestEnqueueFromSelf(t *testing.T) {
 	var a Actor
-	done := make(chan struct{})
 	var results []int
-	a.SyncExec(func() {
+	<-a.SyncExec(func() {
 		for idx := 0; idx < 1024; idx++ {
 			n := idx // Because idx gets mutated in place
 			a.EnqueueFrom(&a, func() {
@@ -39,8 +38,7 @@ func TestEnqueueFromSelf(t *testing.T) {
 			})
 		}
 	})
-	a.EnqueueFrom(&a, func() { close(done) })
-	<-done
+	<-a.SyncExec(func() {})
 	for idx, n := range results {
 		if n != idx {
 			t.Errorf("value %d != index %d", n, idx)
@@ -51,7 +49,7 @@ func TestEnqueueFromSelf(t *testing.T) {
 func BenchmarkSyncExec(b *testing.B) {
 	var a Actor
 	for i := 0; i < b.N; i++ {
-		a.SyncExec(func() {})
+		<-a.SyncExec(func() {})
 	}
 }
 
