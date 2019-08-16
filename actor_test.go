@@ -50,22 +50,20 @@ func TestEnqueueFromSelf(t *testing.T) {
 
 func BenchmarkSyncExec(b *testing.B) {
 	var a Actor
-	f := func() {}
 	for i := 0; i < b.N; i++ {
-		a.SyncExec(f)
+		a.SyncExec(func() {})
 	}
 }
 
 func BenchmarkEnqueueFrom(b *testing.B) {
 	var a0, a1 Actor
-	msg := func() {}
 	var count int
 	done := make(chan struct{})
 	var f func()
 	f = func() {
 		// Run in a0
 		if count < b.N {
-			a1.EnqueueFrom(&a0, msg)
+			a1.EnqueueFrom(&a0, func() {})
 			count++
 			// Continue the loop by sending a message to ourself to run the next iteration.
 			// If there's any backpressure from a1, this gives it a chance to apply.
@@ -82,10 +80,9 @@ func BenchmarkEnqueueFromSelf(b *testing.B) {
 	var a0, a1 Actor
 	done := make(chan struct{})
 	a0.EnqueueFrom(&a0, func() {
-		msg := func() {}
 		for idx := 0; idx < b.N; idx++ {
 			// We don't care about backpressure, so we just enqueue the message in a for loop.
-			a1.EnqueueFrom(&a1, msg)
+			a1.EnqueueFrom(&a1, func() {})
 		}
 		a1.EnqueueFrom(&a1, func() { close(done) })
 	})

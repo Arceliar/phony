@@ -25,14 +25,14 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkSyncExec-4          	 1000000	      1341 ns/op
-BenchmarkEnqueueFrom-4       	 5000000	       259 ns/op
-BenchmarkEnqueueFromSelf-4   	20000000	       102 ns/op
-BenchmarkChannelSyncExec-4   	 1000000	      1109 ns/op
-BenchmarkChannel-4           	 3000000	       421 ns/op
-BenchmarkBufferedChannel-4   	10000000	       130 ns/op
+BenchmarkSyncExec-4          	 1000000	      1338 ns/op
+BenchmarkEnqueueFrom-4       	 5000000	       282 ns/op
+BenchmarkEnqueueFromSelf-4   	20000000	       113 ns/op
+BenchmarkChannelSyncExec-4   	 1000000	      1081 ns/op
+BenchmarkChannel-4           	 3000000	       442 ns/op
+BenchmarkBufferedChannel-4   	10000000	       122 ns/op
 PASS
-ok  	github.com/Arceliar/phony	9.349s
+ok  	github.com/Arceliar/phony	9.648s
 ```
 
 I'd try to explain the benchmarks, but if you're here then presumably you can read Go, so I'd recommend just checking the code to see what they do.
