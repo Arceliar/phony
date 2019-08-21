@@ -17,7 +17,7 @@ const backpressureThreshold = 127
 type queueElem struct {
 	msg   func()
 	next  unsafe.Pointer // *queueElem, accessed atomically
-	count int
+	count uint
 }
 
 // An Actor maintans an inbox of messages and processes them 1 at a time.
@@ -39,7 +39,7 @@ type IActor interface {
 
 // enqueue puts a message on the Actor's inbox queue and returns the number of messages that have been enqueued since the inbox was last empty.
 // If the inbox was empty, then the actor was not already running, so enqueue starts it.
-func (a *Actor) enqueue(f func()) int {
+func (a *Actor) enqueue(f func()) uint {
 	if f == nil {
 		panic("tried to send nil message")
 	}
