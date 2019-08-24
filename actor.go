@@ -60,12 +60,12 @@ func (a *Actor) enqueue(f func()) uint {
 
 // EnqueueFrom adds a message to the actor's queue and, if the queue is flooded, signals the sender to pause at a safe point until it receives notification from this Actor that it has made sufficient progress.
 // To send a message, the sender should call this function on the receiver and pass itself as the first argument.
-// A non-Actor that wants to send a message to an Actor may pass that Actor to itself as the first argument.
+// A non-Actor that wants to send a message to an Actor, or an Actor that wants to enqueue a message to itself, may pass nil as the first argument to avoid applying backpressure.
 func (a *Actor) EnqueueFrom(sender IActor, message func()) {
-	if a.enqueue(message) > backpressureThreshold && sender != a {
+	if a.enqueue(message) > backpressureThreshold && sender != nil {
 		done := make(chan struct{})
 		a.enqueue(func() { close(done) })
-		sender.EnqueueFrom(sender, func() { <-done })
+		sender.EnqueueFrom(nil, func() { <-done })
 	}
 }
 
