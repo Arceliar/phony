@@ -23,9 +23,9 @@ type counter struct {
 	printer *printer
 }
 
-// An EnqueueFrom itself is useful for asking an actor to do something from non-actor code.
+// An EnqueueFrom nil is useful for asking an actor to do something from non-actor code.
 func (c *counter) Increment() {
-	c.EnqueueFrom(c, func() { c.count++ })
+	c.EnqueueFrom(nil, func() { c.count++ })
 }
 
 // A SyncExec function returns a channel that will be closed after the actor finishes handling the message
