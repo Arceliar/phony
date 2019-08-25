@@ -21,7 +21,7 @@ type queueElem struct {
 	count uint
 }
 
-// Type Inbox is an ordered queue of messages which an Actor will process sequentially.
+// Inbox is an ordered queue of messages which an Actor will process sequentially.
 // Messages are meant to be in the form of non-blocking functions of 0 arguments, often closures.
 // The intent is for the Inbox struct to be embedded in other structs to satisfy the Actor interface, where the other fields of the struct are owned by the Actor.
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
@@ -31,7 +31,7 @@ type Inbox struct {
 	tail unsafe.Pointer // *queueElem, accessed atomically
 }
 
-// Type Actor is the interface for Actors, based on their ability to receive a message from another Actor.
+// Actor is the interface for Actors, based on their ability to receive a message from another Actor.
 // It's meant so that structs which embed an Inbox can satisfy a mutually compatible interface for message passing.
 type Actor interface {
 	RecvFrom(Actor, func())

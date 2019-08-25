@@ -53,7 +53,7 @@ func BenchmarkSyncExec(b *testing.B) {
 	}
 }
 
-func BenchmarkEnqueueFrom(b *testing.B) {
+func BenchmarkRecvFrom(b *testing.B) {
 	var a0, a1 Inbox
 	var count int
 	done := make(chan struct{})
@@ -74,7 +74,7 @@ func BenchmarkEnqueueFrom(b *testing.B) {
 	<-done
 }
 
-func BenchmarkEnqueueFromNil(b *testing.B) {
+func BenchmarkRecvFromNil(b *testing.B) {
 	var a0, a1 Inbox
 	done := make(chan struct{})
 	a0.RecvFrom(nil, func() {

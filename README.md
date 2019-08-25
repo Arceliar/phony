@@ -15,9 +15,9 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 ## Features
 
 1. Small implementation, only about 61 lines of code, excluding tests and examples. It depends only on a couple of commonly used standard library packages.
-2. Actors are extremely lightweight, only 16 bytes (on x86_64) when their inbox is empty. In that state, and actor has no associated goroutines, and it can be garbage collected just like any other struct, even for cycles of Actors.
+2. Actors are extremely lightweight, only 16 bytes (on x86_64) when their Inbox is empty. In that state, an Actor has no associated goroutines, and it can be garbage collected just like any other struct, even for cycles of Actors.
 3. Asynchronous message passing between Actors. Unlike networks go goroutines communicating over channels, sending messages between Actors cannot deadlock.
-4. Unbounded inbox sizes are kept small in practice through scheduling. Actors that send to an overworked recipient will pause at a safe point in the future, and wait until signaled that the recipient has caught up.
+4. Unbounded Inbox sizes are kept small in practice through backpressure and scheduling. Actors that send to an overworked recipient will pause at a safe point in the future, and wait until signaled that the recipient has caught up.
 
 ## Benchmarks
 
@@ -25,14 +25,14 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkSyncExec-4          	 1000000	      1338 ns/op
-BenchmarkEnqueueFrom-4       	 5000000	       282 ns/op
-BenchmarkEnqueueFromSelf-4   	20000000	       113 ns/op
-BenchmarkChannelSyncExec-4   	 1000000	      1081 ns/op
-BenchmarkChannel-4           	 3000000	       442 ns/op
-BenchmarkBufferedChannel-4   	10000000	       122 ns/op
+BenchmarkSyncExec-4          	 1000000	      1322 ns/op
+BenchmarkRecvFrom-4          	 5000000	       262 ns/op
+BenchmarkRecvFromNil-4       	20000000	       100 ns/op
+BenchmarkChannelSyncExec-4   	 1000000	      1071 ns/op
+BenchmarkChannel-4           	 3000000	       421 ns/op
+BenchmarkBufferedChannel-4   	10000000	       118 ns/op
 PASS
-ok  	github.com/Arceliar/phony	9.648s
+ok  	github.com/Arceliar/phony	9.130s
 ```
 
 I'd try to explain the benchmarks, but if you're here then presumably you can read Go, so I'd recommend just checking the code to see what they do.
