@@ -5,14 +5,14 @@ import (
 	"unsafe"
 )
 
-func TestActorSize(t *testing.T) {
-	var a Actor
+func TestInboxSize(t *testing.T) {
+	var a Inbox
 	var q queueElem
-	t.Logf("Actor size: %d, message size: %d", unsafe.Sizeof(a), unsafe.Sizeof(q))
+	t.Logf("Inbox size: %d, message size: %d", unsafe.Sizeof(a), unsafe.Sizeof(q))
 }
 
 func TestSyncExec(t *testing.T) {
-	var a Actor
+	var a Inbox
 	var results []int
 	for idx := 0; idx < 1024; idx++ {
 		n := idx // Because idx gets mutated in place
@@ -27,13 +27,13 @@ func TestSyncExec(t *testing.T) {
 	}
 }
 
-func TestEnqueueFromNil(t *testing.T) {
-	var a Actor
+func TestRecvFrom(t *testing.T) {
+	var a Inbox
 	var results []int
 	<-a.SyncExec(func() {
 		for idx := 0; idx < 1024; idx++ {
 			n := idx // Because idx gets mutated in place
-			a.EnqueueFrom(nil, func() {
+			a.RecvFrom(&a, func() {
 				results = append(results, n)
 			})
 		}
@@ -47,42 +47,42 @@ func TestEnqueueFromNil(t *testing.T) {
 }
 
 func BenchmarkSyncExec(b *testing.B) {
-	var a Actor
+	var a Inbox
 	for i := 0; i < b.N; i++ {
 		<-a.SyncExec(func() {})
 	}
 }
 
 func BenchmarkEnqueueFrom(b *testing.B) {
-	var a0, a1 Actor
+	var a0, a1 Inbox
 	var count int
 	done := make(chan struct{})
 	var f func()
 	f = func() {
 		// Run in a0
 		if count < b.N {
-			a1.EnqueueFrom(&a0, func() {})
+			a1.RecvFrom(&a0, func() {})
 			count++
 			// Continue the loop by sending a message to ourself to run the next iteration.
 			// If there's any backpressure from a1, this gives it a chance to apply.
-			a0.EnqueueFrom(nil, f)
+			a0.RecvFrom(nil, f)
 		} else {
-			a1.EnqueueFrom(&a0, func() { close(done) })
+			a1.RecvFrom(&a0, func() { close(done) })
 		}
 	}
-	a0.EnqueueFrom(nil, f)
+	a0.RecvFrom(nil, f)
 	<-done
 }
 
 func BenchmarkEnqueueFromNil(b *testing.B) {
-	var a0, a1 Actor
+	var a0, a1 Inbox
 	done := make(chan struct{})
-	a0.EnqueueFrom(nil, func() {
+	a0.RecvFrom(nil, func() {
 		for idx := 0; idx < b.N; idx++ {
 			// We don't care about backpressure, so we just enqueue the message in a for loop.
-			a1.EnqueueFrom(nil, func() {})
+			a1.RecvFrom(nil, func() {})
 		}
-		a1.EnqueueFrom(nil, func() { close(done) })
+		a1.RecvFrom(nil, func() { close(done) })
 	})
 	<-done
 }
