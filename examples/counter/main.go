@@ -31,8 +31,10 @@ func (c *counter) Increment() {
 // A SyncExec function returns a channel that will be closed after the message has been processed from the Inbox.
 // This can be used to interrogate an Actor from an outside goroutine.
 // Note that Actors shouldn't use this on eachother, since it blocks, it's just meant for convenience when interfacing with outside code -- the Actor interface explicitly doesn't include it to make this slightly harder to do by mistake.
-func (c *counter) Get(n *int) {
-	<-c.SyncExec(func() { *n = c.count })
+func (c *counter) Get() int {
+	var n int
+	<-c.SyncExec(func() { n = c.count })
+	return n
 }
 
 // Print sends a message to the counter, telling to to call c.printer.Println
@@ -50,8 +52,7 @@ func main() {
 		c.Increment() // Ask the Actor to do some work
 		c.Print()     // And ask it to send a message to another Actor, which handles them asynchronously
 	}
-	var n int
-	c.Get(&n)                         // Inspect the Actor's internal state
+	n := c.Get()                      // Inspect the Actor's internal state
 	fmt.Println("Value from Get:", n) // This likely prints before the Print() lines above have finished -- Actors work asynchronously.
 	<-c.printer.SyncExec(func() {})   // Wait for an Actor to handle a message, in this case just to finish printing
 	fmt.Println("Exiting")
