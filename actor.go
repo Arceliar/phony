@@ -89,15 +89,13 @@ func (a *Actor) run() {
 			if a.head != nil {
 				// Move to the next message
 				break
+			} else if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
+				// The head is not the tail, but there was no head.next when we checked
+				// Somebody must be updating it right now, so try again
+				continue
 			} else {
-				if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
-					// The head is not the tail, but there was no head.next when we checked
-					// Somebody must be updating it right now, so try again
-					continue
-				} else {
-					// Head and tail are now both nil, our work here is done, exit
-					return
-				}
+				// Head and tail are now both nil, our work here is done, exit
+				return
 			}
 		}
 	}

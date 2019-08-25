@@ -14,7 +14,7 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 
 ## Features
 
-1. Small implementation, only about 63 lines of code, excluding tests and examples. It depends only on a couple of commonly used standard library packages.
+1. Small implementation, only about 61 lines of code, excluding tests and examples. It depends only on a couple of commonly used standard library packages.
 2. Actors are extremely lightweight, only 16 bytes (on x86_64) when their inbox is empty. In that state, and actor has no associated goroutines, and it can be garbage collected just like any other struct, even for cycles of Actors.
 3. Asynchronous message passing between Actors. Unlike networks go goroutines communicating over channels, sending messages between Actors cannot deadlock.
 4. Unbounded inbox sizes are kept small in practice through scheduling. Actors that send to an overworked recipient will pause at a safe point in the future, and wait until signaled that the recipient has caught up.
