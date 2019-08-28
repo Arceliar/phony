@@ -25,14 +25,13 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkSyncExec-4          	 1000000	      1322 ns/op
-BenchmarkRecvFrom-4          	 5000000	       262 ns/op
-BenchmarkRecvFromNil-4       	20000000	       100 ns/op
-BenchmarkChannelSyncExec-4   	 1000000	      1071 ns/op
-BenchmarkChannel-4           	 3000000	       421 ns/op
-BenchmarkBufferedChannel-4   	10000000	       118 ns/op
+BenchmarkBlock-4             	 1000000	      1323 ns/op
+BenchmarkAct-4               	 3000000	       414 ns/op
+BenchmarkActFromNil-4        	20000000	        83.8 ns/op
+BenchmarkChannel-4           	 2000000	       875 ns/op
+BenchmarkBufferedChannel-4   	20000000	        69.3 ns/op
 PASS
-ok  	github.com/Arceliar/phony	9.130s
+ok  	github.com/Arceliar/phony	8.814s
 ```
 
-I'd try to explain the benchmarks, but if you're here then presumably you can read Go, so I'd recommend just checking the code to see what they do.
+If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing. Roughly speaking, `BenchmarkBlock` runs that function in a loop, and the others correspond to 1 message send + 1 message receive + 1 function call in response to that message. They roughly correspond to the maximum and minimum amount of synchronization related overhead for Actors (with or without congestion control) and channels (blocking or buffered operations).

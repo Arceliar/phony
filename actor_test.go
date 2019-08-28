@@ -11,12 +11,12 @@ func TestInboxSize(t *testing.T) {
 	t.Logf("Inbox size: %d, message size: %d", unsafe.Sizeof(a), unsafe.Sizeof(q))
 }
 
-func TestSyncExec(t *testing.T) {
+func TestBlock(t *testing.T) {
 	var a Inbox
 	var results []int
 	for idx := 0; idx < 1024; idx++ {
 		n := idx // Because idx gets mutated in place
-		<-a.SyncExec(func() {
+		Block(&a, func() {
 			results = append(results, n)
 		})
 	}
@@ -27,18 +27,18 @@ func TestSyncExec(t *testing.T) {
 	}
 }
 
-func TestRecvFrom(t *testing.T) {
+func TestAct(t *testing.T) {
 	var a Inbox
 	var results []int
-	<-a.SyncExec(func() {
+	Block(&a, func() {
 		for idx := 0; idx < 1024; idx++ {
 			n := idx // Because idx gets mutated in place
-			a.RecvFrom(&a, func() {
+			a.Act(&a, func() {
 				results = append(results, n)
 			})
 		}
 	})
-	<-a.SyncExec(func() {})
+	Block(&a, func() {})
 	for idx, n := range results {
 		if n != idx {
 			t.Errorf("value %d != index %d", n, idx)
@@ -46,63 +46,44 @@ func TestRecvFrom(t *testing.T) {
 	}
 }
 
-func BenchmarkSyncExec(b *testing.B) {
+func BenchmarkBlock(b *testing.B) {
 	var a Inbox
 	for i := 0; i < b.N; i++ {
-		<-a.SyncExec(func() {})
+		Block(&a, func() {})
 	}
 }
 
-func BenchmarkRecvFrom(b *testing.B) {
-	var a0, a1 Inbox
-	var count int
+func BenchmarkAct(b *testing.B) {
+	var a Inbox
 	done := make(chan struct{})
+	idx := 0
 	var f func()
 	f = func() {
-		// Run in a0
-		if count < b.N {
-			a1.RecvFrom(&a0, func() {})
-			count++
-			// Continue the loop by sending a message to ourself to run the next iteration.
-			// If there's any backpressure from a1, this gives it a chance to apply.
-			a0.RecvFrom(nil, f)
+		if idx < b.N {
+			idx++
+			a.Act(&a, f)
 		} else {
-			a1.RecvFrom(&a0, func() { close(done) })
+			close(done)
 		}
 	}
-	a0.RecvFrom(nil, f)
+	a.Act(nil, f)
 	<-done
 }
 
-func BenchmarkRecvFromNil(b *testing.B) {
-	var a0, a1 Inbox
+func BenchmarkActFromNil(b *testing.B) {
+	var a Inbox
 	done := make(chan struct{})
-	a0.RecvFrom(nil, func() {
-		for idx := 0; idx < b.N; idx++ {
-			// We don't care about backpressure, so we just enqueue the message in a for loop.
-			a1.RecvFrom(nil, func() {})
+	idx := 0
+	var f func()
+	f = func() {
+		if idx < b.N {
+			idx++
+			a.Act(nil, f)
+		} else {
+			close(done)
 		}
-		a1.RecvFrom(nil, func() { close(done) })
-	})
-	<-done
-}
-
-func BenchmarkChannelSyncExec(b *testing.B) {
-	ch := make(chan func())
-	done := make(chan struct{})
-	go func() {
-		for f := range ch {
-			f()
-		}
-		close(done)
-	}()
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		d := make(chan struct{})
-		ch <- func() { f(); close(d) }
-		<-d
 	}
-	close(ch)
+	a.Act(nil, f)
 	<-done
 }
 
@@ -111,35 +92,26 @@ func BenchmarkChannel(b *testing.B) {
 	ch := make(chan func())
 	go func() {
 		for f := range ch {
-			f()
+			ch <- f
 		}
 		close(done)
 	}()
-	go func() {
-		f := func() {}
-		for i := 0; i < b.N; i++ {
-			ch <- f
-		}
-		close(ch)
-	}()
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		ch <- f
+		g := <-ch
+		g()
+	}
+	close(ch)
 	<-done
 }
 
 func BenchmarkBufferedChannel(b *testing.B) {
-	done := make(chan struct{})
-	ch := make(chan func(), b.N)
-	go func() {
-		for f := range ch {
-			f()
-		}
-		close(done)
-	}()
-	go func() {
-		f := func() {}
-		for i := 0; i < b.N; i++ {
-			ch <- f
-		}
-		close(ch)
-	}()
-	<-done
+	ch := make(chan func(), 1)
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		ch <- f
+		g := <-ch
+		g()
+	}
 }

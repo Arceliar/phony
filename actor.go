@@ -34,7 +34,7 @@ type Inbox struct {
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
 // It's meant so that structs which embed an Inbox can satisfy a mutually compatible interface for message passing.
 type Actor interface {
-	RecvFrom(Actor, func())
+	Act(Actor, func())
 }
 
 // enqueue puts a message on the Actor's inbox queue and returns the number of messages that have been enqueued since the inbox was last empty.
@@ -58,24 +58,26 @@ func (a *Inbox) enqueue(f func()) uint {
 	return q.count
 }
 
-// RecvFrom adds a message to the Inbox and, if the Inbox is flooded, signals the sender to pause at a safe point until it receives notification from this Actor that it has made sufficient progress.
-// To send a message, the sender should call this function on the receiver and pass itself as the first argument.
-// A nil first argument is valid, and will prevent backpressure from applying, in cases where an Actor wants to send a message to itself or must receive a message from non-Actor code.
-func (a *Inbox) RecvFrom(sender Actor, message func()) {
-	if a.enqueue(message) > backpressureThreshold && sender != nil {
+// Act adds a message to an Actor's Inbox which tells the Actor to execute the provided function at some point in the future.
+// When one Actor sends a message to another, the sender is meant to provide itself as the first argument to this function.
+// If the receiver's Inbox has collected too many messages since it was last empty, and the sender argument is non-nil, then the sender is scheduled to pause at a safe point in the future until the receiver has finished running the action.
+// A nil first argument is valid, and will prevent any scheduling changes from happening, in cases where an Actor wants to send a message to itself (where this scheduling is just useless overhead) or must receive a message from non-Actor code.
+func (a *Inbox) Act(from Actor, action func()) {
+	if a.enqueue(action) > backpressureThreshold && from != nil {
 		done := make(chan struct{})
 		a.enqueue(func() { close(done) })
-		sender.RecvFrom(nil, func() { <-done })
+		from.Act(nil, func() { <-done })
 	}
 }
 
-// SyncExec places a message in the Inbox and returns a channel that will be closed when the Actor finishes handling the message.
-// Actors should never, under any circumstances, call SyncExec on another Actor's Inbox and then wait for the channel to close.
-// It's meant exclusively as a convenience function for non-Actor code to send messages, and wait for responses, without flooding.
-func (a *Inbox) SyncExec(f func()) chan struct{} {
+// Block adds a message to an Actor's Inbox which tells the Actor to execute the provided function at some point in the future.
+// It then blocks until the actor has finished running the provided function.
+// Block meant exclusively as a convenience function for non-Actor code to send messages and wait for responses.
+// If an Actor calls Block, then it may cause a deadlock, so Act should always be used instead.
+func Block(actor Actor, action func()) {
 	done := make(chan struct{})
-	a.enqueue(func() { f(); close(done) })
-	return done
+	actor.Act(nil, func() { action(); close(done) })
+	<-done
 }
 
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
