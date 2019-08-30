@@ -47,7 +47,7 @@ func (a *Inbox) enqueue(f func()) uint {
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
-		q.count = tail.count + 1
+		q.count = tail.count + 1 // FIXME this races, need to store/update counter some other way
 		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
 	} else {
 		// No old tail existed, so no worker is currently running
