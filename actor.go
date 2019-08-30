@@ -16,9 +16,8 @@ const backpressureThreshold = 127
 
 // A message in the queue
 type queueElem struct {
-	msg   func()
-	next  unsafe.Pointer // *queueElem, accessed atomically
-	count uint
+	msg  func()
+	next unsafe.Pointer // *queueElem, accessed atomically
 }
 
 // Inbox is an ordered queue of messages which an Actor will process sequentially.
@@ -27,8 +26,9 @@ type queueElem struct {
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Inbox must not be copied after first use.
 type Inbox struct {
-	head *queueElem     // Used carefully to avoid needing atomics
-	tail unsafe.Pointer // *queueElem, accessed atomically
+	head  *queueElem     // Used carefully to avoid needing atomics
+	tail  unsafe.Pointer // *queueElem, accessed atomically
+	count uint32         // updated atomically when a message is enqueued
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -39,23 +39,25 @@ type Actor interface {
 
 // enqueue puts a message on the Actor's inbox queue and returns the number of messages that have been enqueued since the inbox was last empty.
 // If the inbox was empty, then the actor was not already running, so enqueue starts it.
-func (a *Inbox) enqueue(f func()) uint {
+func (a *Inbox) enqueue(f func()) uint32 {
 	if f == nil {
 		panic("tried to send nil message")
 	}
 	q := &queueElem{msg: f}
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
+	var count uint32
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
-		q.count = tail.count + 1 // FIXME this races, need to store/update counter some other way
+		count = atomic.AddUint32(&a.count, 1)
 		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
+		atomic.StoreUint32(&a.count, 0)
 		a.head = q
 		go a.run()
 	}
-	return q.count
+	return count
 }
 
 // Act adds a message to an Actor's Inbox which tells the Actor to execute the provided function at some point in the future.
