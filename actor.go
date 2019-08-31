@@ -7,9 +7,12 @@
 package phony
 
 import (
+	"sync"
 	"sync/atomic"
 	"unsafe"
 )
+
+var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // How large a queue can be before backpressure slows down sending to it.
 const backpressureThreshold = 127
@@ -43,7 +46,8 @@ func (a *Inbox) enqueue(f func()) uint32 {
 	if f == nil {
 		panic("tried to send nil message")
 	}
-	q := &queueElem{msg: f}
+	q := pool.Get().(*queueElem)
+	*q = queueElem{msg: f}
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
@@ -90,6 +94,7 @@ func (a *Inbox) run() {
 			a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 			if a.head != nil {
 				// Move to the next message
+				pool.Put(head)
 				break
 			} else if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
 				// The head is not the tail, but there was no head.next when we checked
@@ -97,6 +102,7 @@ func (a *Inbox) run() {
 				continue
 			} else {
 				// Head and tail are now both nil, our work here is done, exit
+				pool.Put(head)
 				return
 			}
 		}
