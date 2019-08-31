@@ -86,6 +86,7 @@ func (a *Inbox) run() {
 			a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 			if a.head != nil {
 				// Move to the next message
+				*head = queueElem{} // Clear fields before putting into pool
 				pool.Put(head)
 				break
 			} else if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
@@ -94,6 +95,7 @@ func (a *Inbox) run() {
 				continue
 			} else {
 				// Head and tail are now both nil, our work here is done, exit
+				*head = queueElem{} // Clear fields before putting into pool
 				pool.Put(head)
 				return
 			}
