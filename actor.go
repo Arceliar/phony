@@ -12,6 +12,7 @@ import (
 	"unsafe"
 )
 
+// pool of old messages, to avoid needing to allocate them every send
 var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // How large a queue can be before backpressure slows down sending to it.
