@@ -45,19 +45,16 @@ func (a *Inbox) enqueue(f func()) uint32 {
 	}
 	q := &queueElem{msg: f}
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
-	var count uint32
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
-		count = atomic.AddUint32(&a.count, 1)
 		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
-		atomic.StoreUint32(&a.count, 0)
 		a.head = q
 		go a.run()
 	}
-	return count
+	return atomic.AddUint32(&a.count, 1)
 }
 
 // Act adds a message to an Actor's Inbox which tells the Actor to execute the provided function at some point in the future.
@@ -88,6 +85,7 @@ func (a *Inbox) run() {
 	for {
 		head := a.head
 		head.msg()
+		atomic.AddUint32(&a.count, ^uint32(0)) // decrement counter
 		for {
 			a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 			if a.head != nil {
