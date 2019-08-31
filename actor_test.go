@@ -54,19 +54,20 @@ func BenchmarkBlock(b *testing.B) {
 }
 
 func BenchmarkAct(b *testing.B) {
-	var a Inbox
+	var a, s Inbox
 	done := make(chan struct{})
 	idx := 0
 	var f func()
 	f = func() {
 		if idx < b.N {
 			idx++
-			a.Act(&a, f)
+			a.Act(&s, func() {})
+			s.Act(nil, f)
 		} else {
-			close(done)
+			a.Act(&s, func() { close(done) })
 		}
 	}
-	a.Act(nil, f)
+	s.Act(nil, f)
 	<-done
 }
 
