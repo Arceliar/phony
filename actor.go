@@ -124,14 +124,8 @@ func (a *Inbox) advance() bool {
 }
 
 func (a *Inbox) restart() {
-	go a.run()
+	schedule(a.run)
 }
-
-func (a *Inbox) cancel() {
-	panic(isCancelled)
-}
-
-var isCancelled = new(struct{})
 
 type stop uint32
 
