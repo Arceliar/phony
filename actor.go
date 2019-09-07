@@ -58,7 +58,7 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 
 // Act adds a message to an Actor's Inbox which tells the Actor to execute the provided function at some point in the future.
 // When one Actor sends a message to another, the sender is meant to provide itself as the first argument to this function.
-// If the receiver's Inbox has collected too many messages since it was last empty, and the sender argument is non-nil, then the sender is scheduled to pause at a safe point in the future until the receiver has finished running the action.
+// If the receiver's Inbox contains too many messages, and the sender argument is non-nil, then the sender is scheduled to pause at a safe point in the future, until the receiver has finished running the action.
 // A nil first argument is valid, and will prevent any scheduling changes from happening, in cases where an Actor wants to send a message to itself (where this scheduling is just useless overhead) or must receive a message from non-Actor code.
 func (a *Inbox) Act(from Actor, action func()) {
 	if a.enqueue(action) && from != nil {
@@ -124,7 +124,7 @@ func (a *Inbox) advance() bool {
 }
 
 func (a *Inbox) restart() {
-	schedule(a.run)
+	go a.run()
 }
 
 type stop uint32

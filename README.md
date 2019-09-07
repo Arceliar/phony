@@ -14,10 +14,10 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 
 ## Features
 
-1. Small implementation, only about 66 lines of code, excluding tests and examples. It depends only on a couple of commonly used standard library packages.
-2. Actors are extremely lightweight, only 24 bytes (on x86_64) when their Inbox is empty. In that state, an Actor has no associated goroutines, and it can be garbage collected just like any other struct, even for cycles of Actors.
+1. Small implementation, only around 100 lines of code, excluding tests and examples. It depends only on a couple of commonly used standard library packages.
+2. Actors are extremely lightweight, only 24 bytes (on x86_64) with an empty Inbox. In that state, an Actor has no associated goroutines, and it can be garbage collected just like any other struct, even for cycles of Actors.
 3. Asynchronous message passing between Actors. Unlike networks go goroutines communicating over channels, sending messages between Actors cannot deadlock.
-4. Unbounded Inbox sizes are kept small in practice through backpressure and scheduling. Actors that send to an overworked recipient will pause at a safe point in the future, and wait until signaled that the recipient has caught up.
+4. Unbounded Inbox sizes are kept small in practice through backpressure and scheduling. Actors that send to an overworked recipient will pause at a safe point in the future, and wait until signaled that the recipient has caught up. A paused actor also has no associated goroutine or stack.
 
 ## Benchmarks
 
@@ -25,13 +25,13 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkBlock-4             	 1000000	      1327 ns/op	     128 B/op	       2 allocs/op
-BenchmarkAct-4               	 5455005	       210 ns/op	       0 B/op	       0 allocs/op
-BenchmarkActFromNil-4        	17582071	        65.7 ns/op	       0 B/op	       0 allocs/op
-BenchmarkChannel-4           	 1407433	       846 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBufferedChannel-4   	15322878	        70.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4             	  926380	      1406 ns/op	     128 B/op	       2 allocs/op
+BenchmarkAct-4               	 5409076	       217 ns/op	       0 B/op	       0 allocs/op
+BenchmarkActFromNil-4        	16506667	        67.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkChannel-4           	 1359872	       889 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBufferedChannel-4   	14539047	        74.0 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	7.159s
+ok  	github.com/Arceliar/phony	8.219s
 ```
 
 If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing.
