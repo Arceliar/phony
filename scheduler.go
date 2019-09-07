@@ -26,10 +26,9 @@ func init() {
 		var queue []func()
 		for {
 			for len(queue) > 0 {
-				idx := len(queue) - 1 // LIFO to avoid reallocating the queue slice too much
 				select {
-				case workerIn <- queue[idx]:
-					queue = queue[:idx]
+				case workerIn <- queue[0]:
+					queue = queue[1:]
 				case f := <-schedIn:
 					queue = append(queue, f)
 				}
