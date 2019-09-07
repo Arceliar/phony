@@ -11,7 +11,7 @@ var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // A message in the queue
 type queueElem struct {
-	msg  func() bool
+	msg  interface{}    // func() or func() bool
 	next unsafe.Pointer // *queueElem, accessed atomically
 }
 
@@ -30,19 +30,19 @@ type Inbox struct {
 // It's meant so that structs which embed an Inbox can satisfy a mutually compatible interface for message passing.
 type Actor interface {
 	Act(Actor, func())
-	enqueue(func() bool) bool
+	enqueue(interface{}) bool
 	restart()
 	advance() bool
 }
 
 // enqueue puts a message on the Actor's inbox queue and returns the number of messages that have been enqueued since the inbox was last empty.
 // If the inbox was empty, then the actor was not already running, so enqueue starts it.
-func (a *Inbox) enqueue(f func() bool) bool {
-	if f == nil {
+func (a *Inbox) enqueue(msg interface{}) bool {
+	if msg == nil {
 		panic("tried to send nil message")
 	}
 	q := pool.Get().(*queueElem)
-	*q = queueElem{msg: f}
+	*q = queueElem{msg: msg}
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
@@ -61,14 +61,12 @@ func (a *Inbox) enqueue(f func() bool) bool {
 // If the receiver's Inbox has collected too many messages since it was last empty, and the sender argument is non-nil, then the sender is scheduled to pause at a safe point in the future until the receiver has finished running the action.
 // A nil first argument is valid, and will prevent any scheduling changes from happening, in cases where an Actor wants to send a message to itself (where this scheduling is just useless overhead) or must receive a message from non-Actor code.
 func (a *Inbox) Act(from Actor, action func()) {
-	f := func() bool { action(); return false }
-	if a.enqueue(f) && from != nil {
+	if a.enqueue(action) && from != nil {
 		var s stop
-		a.enqueue(func() bool {
+		a.enqueue(func() {
 			if !s.stop() && from.advance() {
 				from.restart()
 			}
-			return false
 		})
 		from.enqueue(s.stop)
 	}
@@ -87,7 +85,17 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
-	for !a.head.msg() && a.advance() { // Processing messages...
+	running := true
+	for running {
+		switch msg := a.head.msg.(type) {
+		case func() bool: // used internally by backpressure
+			if msg() {
+				return
+			}
+		case func(): // all external use from Act
+			msg()
+		}
+		running = a.advance()
 	}
 }
 
