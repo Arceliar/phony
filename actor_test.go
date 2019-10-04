@@ -1,6 +1,8 @@
 package phony
 
 import (
+	"runtime"
+	"sync"
 	"testing"
 	"unsafe"
 )
@@ -85,6 +87,90 @@ func BenchmarkActFromNil(b *testing.B) {
 		}
 	}
 	a.Act(nil, f)
+	<-done
+}
+
+func BenchmarkActFromMany(b *testing.B) {
+	var s Inbox
+	count := runtime.GOMAXPROCS(0)
+	var group sync.WaitGroup
+	for idx := 0; idx < count; idx++ {
+		msgs := b.N / count
+		if idx == 0 {
+			msgs = b.N - (count-1)*msgs
+		}
+		var a Inbox
+		jdx := 0
+		var f func()
+		f = func() {
+			if jdx < msgs {
+				jdx++
+				a.Act(&s, func() {})
+				s.Act(nil, f)
+			} else {
+				a.Act(&s, func() { group.Done() })
+			}
+		}
+		group.Add(1)
+		a.Act(nil, f)
+	}
+	group.Wait()
+}
+
+func BenchmarkActFromManyNil(b *testing.B) {
+	var s Inbox
+	count := runtime.GOMAXPROCS(0)
+	var group sync.WaitGroup
+	for idx := 0; idx < count; idx++ {
+		msgs := b.N / count
+		if idx == 0 {
+			msgs = b.N - (count-1)*msgs
+		}
+		var a Inbox
+		jdx := 0
+		var f func()
+		f = func() {
+			if jdx < msgs {
+				jdx++
+				a.Act(nil, func() {})
+				s.Act(nil, f)
+			} else {
+				a.Act(nil, func() { group.Done() })
+			}
+		}
+		group.Add(1)
+		a.Act(nil, f)
+	}
+	group.Wait()
+}
+
+func BenchmarkChannelMany(b *testing.B) {
+	done := make(chan struct{})
+	ch := make(chan func())
+	go func() {
+		for f := range ch {
+			f()
+		}
+		close(done)
+	}()
+	var group sync.WaitGroup
+	count := runtime.GOMAXPROCS(0)
+	for idx := 0; idx < count; idx++ {
+		msgs := b.N / count
+		if idx == 0 {
+			msgs = b.N - (count-1)*msgs
+		}
+		group.Add(1)
+		go func() {
+			f := func() {}
+			for jdx := 0; jdx < msgs; jdx++ {
+				ch <- f
+			}
+			group.Done()
+		}()
+	}
+	group.Wait()
+	close(ch)
 	<-done
 }
 

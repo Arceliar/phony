@@ -11,8 +11,9 @@ var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // A message in the queue
 type queueElem struct {
-	msg  interface{}    // func() or func() bool
-	next unsafe.Pointer // *queueElem, accessed atomically
+	msg   interface{}    // func() or func() bool
+	next  unsafe.Pointer // *queueElem, accessed atomically
+	count uint8
 }
 
 // Inbox is an ordered queue of messages which an Actor will process sequentially.
@@ -21,9 +22,8 @@ type queueElem struct {
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Inbox must not be copied after first use.
 type Inbox struct {
-	head  *queueElem     // Used carefully to avoid needing atomics
-	tail  unsafe.Pointer // *queueElem, accessed atomically
-	count uint32         // updated atomically when a message is enqueued
+	head *queueElem     // Used carefully to avoid needing atomics
+	tail unsafe.Pointer // *queueElem, accessed atomically
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -43,7 +43,20 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 	}
 	q := pool.Get().(*queueElem)
 	*q = queueElem{msg: msg}
-	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
+	var tail *queueElem
+	for {
+		q.count = 0
+		tail = (*queueElem)(atomic.LoadPointer(&a.tail))
+		if tail != nil {
+			q.count = tail.count + 1
+			if q.count == 0 {
+				q.count = ^q.count
+			}
+		}
+		if atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(tail), unsafe.Pointer(q)) {
+			break
+		}
+	}
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
 		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
@@ -53,7 +66,7 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 		a.head = q
 		a.restart()
 	}
-	return atomic.AddUint32(&a.count, 1) > backpressureThreshold
+	return q.count >= backpressureThreshold
 }
 
 // Act adds a message to an Actor's Inbox which tells the Actor to execute the provided function at some point in the future.
@@ -102,7 +115,6 @@ func (a *Inbox) run() {
 // returns true if we still have more work to do
 func (a *Inbox) advance() bool {
 	head := a.head
-	atomic.AddUint32(&a.count, ^uint32(0)) // decrement counter
 	for {
 		a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 		if a.head != nil {
