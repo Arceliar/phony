@@ -1,13 +1,9 @@
 package phony
 
 import (
-	"sync"
 	"sync/atomic"
 	"unsafe"
 )
-
-// pool of old messages, to avoid needing to allocate them every send
-var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // A message in the queue
 type queueElem struct {
@@ -41,8 +37,7 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 	if msg == nil {
 		panic("tried to send nil message")
 	}
-	q := pool.Get().(*queueElem)
-	*q = queueElem{msg: msg}
+	q := &queueElem{msg: msg}
 	var tail *queueElem
 	for {
 		q.count = 0
@@ -119,8 +114,6 @@ func (a *Inbox) advance() bool {
 		a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 		if a.head != nil {
 			// Move to the next message
-			*head = queueElem{} // Clear fields before putting into pool
-			pool.Put(head)
 			return true // more left to do
 		} else if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
 			// The head is not the tail, but there was no head.next when we checked
@@ -128,8 +121,6 @@ func (a *Inbox) advance() bool {
 			continue
 		} else {
 			// Head and tail are now both nil, our work here is done, exit
-			*head = queueElem{} // Clear fields before putting into pool
-			pool.Put(head)
 			return false // done processing messages
 		}
 	}
