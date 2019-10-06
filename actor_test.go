@@ -144,6 +144,31 @@ func BenchmarkActFromManyNil(b *testing.B) {
 	group.Wait()
 }
 
+func BenchmarkPingPong(b *testing.B) {
+	var pinger, ponger Inbox
+	done := make(chan struct{})
+	idx := 0
+	var ping, pong func()
+	ping = func() {
+		if idx < b.N {
+			idx++
+			ponger.Act(&pinger, pong)
+		} else {
+			close(done)
+		}
+	}
+	pong = func() {
+		if idx < b.N {
+			idx++
+			pinger.Act(&ponger, ping)
+		} else {
+			close(done)
+		}
+	}
+	pinger.Act(nil, ping)
+	<-done
+}
+
 func BenchmarkChannelMany(b *testing.B) {
 	done := make(chan struct{})
 	ch := make(chan func())

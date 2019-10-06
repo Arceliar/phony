@@ -25,16 +25,17 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkBlock-4             	 1465959	      1313 ns/op	     160 B/op	       3 allocs/op
-BenchmarkAct-4               	 4872840	       257 ns/op	      64 B/op	       2 allocs/op
-BenchmarkActFromNil-4        	13082683	       104 ns/op	      32 B/op	       1 allocs/op
-BenchmarkActFromMany-4       	 5790708	       198 ns/op	      64 B/op	       2 allocs/op
-BenchmarkActFromManyNil-4    	 5724741	       208 ns/op	      64 B/op	       2 allocs/op
-BenchmarkChannelMany-4       	 2373788	       500 ns/op	       0 B/op	       0 allocs/op
-BenchmarkChannel-4           	 1360372	       862 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBufferedChannel-4   	15325159	        70.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4             	 1000000	      1369 ns/op	     160 B/op	       3 allocs/op
+BenchmarkAct-4               	 5608544	       228 ns/op	      64 B/op	       2 allocs/op
+BenchmarkActFromNil-4        	11455034	        97.3 ns/op	      32 B/op	       1 allocs/op
+BenchmarkActFromMany-4       	 5889196	       204 ns/op	      64 B/op	       2 allocs/op
+BenchmarkActFromManyNil-4    	 5770095	       211 ns/op	      64 B/op	       2 allocs/op
+BenchmarkPingPong-4          	 1766218	       652 ns/op	      32 B/op	       1 allocs/op
+BenchmarkChannelMany-4       	 2354626	       500 ns/op	       0 B/op	       0 allocs/op
+BenchmarkChannel-4           	 1345572	       896 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBufferedChannel-4   	15126925	        70.7 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	13.405s
+ok  	github.com/Arceliar/phony	13.738s
 ```
 
 If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing.
