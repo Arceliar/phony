@@ -73,6 +73,23 @@ func BenchmarkAct(b *testing.B) {
 	<-done
 }
 
+func BenchmarkActFromSelf(b *testing.B) {
+	var a Inbox
+	done := make(chan struct{})
+	idx := 0
+	var f func()
+	f = func() {
+		if idx < b.N {
+			idx++
+			a.Act(&a, f)
+		} else {
+			close(done)
+		}
+	}
+	a.Act(nil, f)
+	<-done
+}
+
 func BenchmarkActFromNil(b *testing.B) {
 	var a Inbox
 	done := make(chan struct{})
