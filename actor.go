@@ -26,9 +26,9 @@ func (q *queueElem) put() {
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Inbox must not be copied after first use.
 type Inbox struct {
-	head  *queueElem     // Used carefully to avoid needing atomics
-	tail  unsafe.Pointer // *queueElem, accessed atomically
-	count uint32         // accessed atomically
+	head *queueElem     // Used carefully to avoid needing atomics
+	tail unsafe.Pointer // *queueElem, accessed atomically
+	wait uint32         // accessed atomically, 1 if sends should apply backpressure
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -55,10 +55,11 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
+		atomic.StoreUint32(&a.wait, 0)
 		a.head = q
 		a.restart()
 	}
-	return atomic.AddUint32(&a.count, 1) > backpressureThreshold
+	return atomic.LoadUint32(&a.wait) != 0
 }
 
 // Act adds a message to an Inbox, which will be executed by the inbox's Actor at some point in the future.
@@ -91,6 +92,7 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
+	atomic.StoreUint32(&a.wait, 1)
 	running := true
 	for running {
 		switch msg := a.head.msg.(type) {
@@ -103,7 +105,6 @@ func (a *Inbox) run() {
 		}
 		running = a.advance()
 	}
-	atomic.StoreUint32(&a.count, 0)
 }
 
 // returns true if we still have more work to do

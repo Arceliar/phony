@@ -25,17 +25,18 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkBlock-4             	 1000000	      1369 ns/op	     160 B/op	       3 allocs/op
-BenchmarkAct-4               	 5608544	       228 ns/op	      64 B/op	       2 allocs/op
-BenchmarkActFromNil-4        	11455034	        97.3 ns/op	      32 B/op	       1 allocs/op
-BenchmarkActFromMany-4       	 5889196	       204 ns/op	      64 B/op	       2 allocs/op
-BenchmarkActFromManyNil-4    	 5770095	       211 ns/op	      64 B/op	       2 allocs/op
-BenchmarkPingPong-4          	 1766218	       652 ns/op	      32 B/op	       1 allocs/op
-BenchmarkChannelMany-4       	 2354626	       500 ns/op	       0 B/op	       0 allocs/op
-BenchmarkChannel-4           	 1345572	       896 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBufferedChannel-4   	15126925	        70.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4             	 1000000	      1666 ns/op	     128 B/op	       2 allocs/op
+BenchmarkAct-4               	 3350524	       347 ns/op	       0 B/op	       0 allocs/op
+BenchmarkActFromSelf-4       	 3659487	       349 ns/op	      52 B/op	       3 allocs/op
+BenchmarkActFromNil-4        	19720999	        57.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkActFromMany-4       	 4216896	       278 ns/op	       2 B/op	       0 allocs/op
+BenchmarkActFromManyNil-4    	 4626250	       249 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPingPong-4          	 1855938	       592 ns/op	       0 B/op	       0 allocs/op
+BenchmarkChannelMany-4       	 2298198	       470 ns/op	       0 B/op	       0 allocs/op
+BenchmarkChannel-4           	 1384917	       867 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBufferedChannel-4   	15319149	        72.0 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	13.738s
+ok  	github.com/Arceliar/phony	16.584s
 ```
 
 If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing.
