@@ -55,7 +55,6 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
-		atomic.StoreUint32(&a.wait, 0)
 		a.head = q
 		a.restart()
 	}
@@ -92,9 +91,9 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
-	atomic.StoreUint32(&a.wait, 1)
 	running := true
 	for running {
+		atomic.StoreUint32(&a.wait, 1)
 		switch msg := a.head.msg.(type) {
 		case func() bool: // used internally by backpressure
 			if msg() {
@@ -105,6 +104,7 @@ func (a *Inbox) run() {
 		}
 		running = a.advance()
 	}
+	atomic.StoreUint32(&a.wait, 0)
 }
 
 // returns true if we still have more work to do

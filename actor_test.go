@@ -1,8 +1,6 @@
 package phony
 
 import (
-	"runtime"
-	"sync"
 	"testing"
 	"unsafe"
 )
@@ -48,14 +46,7 @@ func TestAct(t *testing.T) {
 	}
 }
 
-func BenchmarkBlock(b *testing.B) {
-	var a Inbox
-	for i := 0; i < b.N; i++ {
-		Block(&a, func() {})
-	}
-}
-
-func BenchmarkAct(b *testing.B) {
+func BenchmarkSendActor(b *testing.B) {
 	var a, s Inbox
 	done := make(chan struct{})
 	idx := 0
@@ -73,95 +64,24 @@ func BenchmarkAct(b *testing.B) {
 	<-done
 }
 
-func BenchmarkActFromSelf(b *testing.B) {
-	var a Inbox
+func BenchmarkSendChannel(b *testing.B) {
 	done := make(chan struct{})
-	idx := 0
-	var f func()
-	f = func() {
-		if idx < b.N {
-			idx++
-			a.Act(&a, f)
-		} else {
-			close(done)
+	ch := make(chan func())
+	go func() {
+		for f := range ch {
+			f()
 		}
+		close(done)
+	}()
+	f := func() {}
+	for i := 0; i < b.N; i++ {
+		ch <- f
 	}
-	a.Act(nil, f)
+	close(ch)
 	<-done
 }
 
-func BenchmarkActFromNil(b *testing.B) {
-	var a Inbox
-	done := make(chan struct{})
-	idx := 0
-	var f func()
-	f = func() {
-		if idx < b.N {
-			idx++
-			a.Act(nil, f)
-		} else {
-			close(done)
-		}
-	}
-	a.Act(nil, f)
-	<-done
-}
-
-func BenchmarkActFromMany(b *testing.B) {
-	var s Inbox
-	count := runtime.GOMAXPROCS(0)
-	var group sync.WaitGroup
-	for idx := 0; idx < count; idx++ {
-		msgs := b.N / count
-		if idx == 0 {
-			msgs = b.N - (count-1)*msgs
-		}
-		var a Inbox
-		jdx := 0
-		var f func()
-		f = func() {
-			if jdx < msgs {
-				jdx++
-				a.Act(&s, func() {})
-				s.Act(nil, f)
-			} else {
-				a.Act(&s, func() { group.Done() })
-			}
-		}
-		group.Add(1)
-		a.Act(nil, f)
-	}
-	group.Wait()
-}
-
-func BenchmarkActFromManyNil(b *testing.B) {
-	var s Inbox
-	count := runtime.GOMAXPROCS(0)
-	var group sync.WaitGroup
-	for idx := 0; idx < count; idx++ {
-		msgs := b.N / count
-		if idx == 0 {
-			msgs = b.N - (count-1)*msgs
-		}
-		var a Inbox
-		jdx := 0
-		var f func()
-		f = func() {
-			if jdx < msgs {
-				jdx++
-				a.Act(nil, func() {})
-				s.Act(nil, f)
-			} else {
-				a.Act(nil, func() { group.Done() })
-			}
-		}
-		group.Add(1)
-		a.Act(nil, f)
-	}
-	group.Wait()
-}
-
-func BenchmarkPingPong(b *testing.B) {
+func BenchmarkRequestResponseActor(b *testing.B) {
 	var pinger, ponger Inbox
 	done := make(chan struct{})
 	idx := 0
@@ -186,61 +106,88 @@ func BenchmarkPingPong(b *testing.B) {
 	<-done
 }
 
-func BenchmarkChannelMany(b *testing.B) {
+func BenchmarkRequestResponseChannel(b *testing.B) {
 	done := make(chan struct{})
-	ch := make(chan func())
+	toPing := make(chan func())
+	toPong := make(chan func())
+	defer close(toPing)
+	defer close(toPong)
+	var ping func()
+	var pong func()
+	idx := 0
+	ping = func() {
+		if idx < b.N {
+			idx++
+			toPong <- pong
+		} else {
+			close(done)
+		}
+	}
+	pong = func() {
+		if idx < b.N {
+			idx++
+			toPing <- ping
+		} else {
+			close(done)
+		}
+	}
+	go func() {
+		for f := range toPing {
+			f()
+		}
+	}()
+	go func() {
+		for f := range toPong {
+			f()
+		}
+	}()
+	toPing <- ping
+	<-done
+}
+
+func BenchmarkLoopActor(b *testing.B) {
+	var a Inbox
+	done := make(chan struct{})
+	idx := 0
+	var f func()
+	f = func() {
+		if idx < b.N {
+			idx++
+			a.Act(nil, f)
+		} else {
+			close(done)
+		}
+	}
+	a.Act(nil, f)
+	<-done
+}
+
+func BenchmarkLoopChannel(b *testing.B) {
+	ch := make(chan func(), 1)
+	defer close(ch)
 	go func() {
 		for f := range ch {
 			f()
 		}
-		close(done)
 	}()
-	var group sync.WaitGroup
-	count := runtime.GOMAXPROCS(0)
-	for idx := 0; idx < count; idx++ {
-		msgs := b.N / count
-		if idx == 0 {
-			msgs = b.N - (count-1)*msgs
-		}
-		group.Add(1)
-		go func() {
-			f := func() {}
-			for jdx := 0; jdx < msgs; jdx++ {
-				ch <- f
-			}
-			group.Done()
-		}()
-	}
-	group.Wait()
-	close(ch)
-	<-done
-}
-
-func BenchmarkChannel(b *testing.B) {
 	done := make(chan struct{})
-	ch := make(chan func())
-	go func() {
-		for f := range ch {
+	idx := 0
+	var f func()
+	f = func() {
+		if idx < b.N {
+			idx++
 			ch <- f
+		} else {
+			close(done)
 		}
-		close(done)
-	}()
-	f := func() {}
-	for i := 0; i < b.N; i++ {
-		ch <- f
-		g := <-ch
-		g()
 	}
-	close(ch)
+	ch <- f
 	<-done
 }
 
-func BenchmarkBufferedChannel(b *testing.B) {
-	ch := make(chan func(), 1)
-	f := func() {}
+func BenchmarkBlock(b *testing.B) {
+	var a Inbox
 	for i := 0; i < b.N; i++ {
-		ch <- f
-		g := <-ch
-		g()
+		Block(&a, func() {})
 	}
 }
