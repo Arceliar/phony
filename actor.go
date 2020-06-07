@@ -26,9 +26,9 @@ func (q *queueElem) put() {
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Inbox must not be copied after first use.
 type Inbox struct {
-	count uint64         // accessed atomically
 	head  *queueElem     // Used carefully to avoid needing atomics
 	tail  unsafe.Pointer // *queueElem, accessed atomically
+	count uint32         // accessed atomically
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -58,7 +58,7 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 		a.head = q
 		a.restart()
 	}
-	return atomic.AddUint64(&a.count, 1) > backpressureThreshold
+	return atomic.AddUint32(&a.count, 1) > backpressureThreshold
 }
 
 // Act adds a message to an Inbox, which will be executed by the inbox's Actor at some point in the future.
@@ -103,7 +103,7 @@ func (a *Inbox) run() {
 		}
 		running = a.advance()
 	}
-	atomic.StoreUint64(&a.count, 0)
+	atomic.StoreUint32(&a.count, 0)
 }
 
 // returns true if we still have more work to do
