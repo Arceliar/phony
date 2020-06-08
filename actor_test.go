@@ -108,8 +108,8 @@ func BenchmarkRequestResponseActor(b *testing.B) {
 
 func BenchmarkRequestResponseChannel(b *testing.B) {
 	done := make(chan struct{})
-	toPing := make(chan func())
-	toPong := make(chan func())
+	toPing := make(chan func(), 1)
+	toPong := make(chan func(), 1)
 	defer close(toPing)
 	defer close(toPong)
 	var ping func()
