@@ -22,19 +22,18 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 ## Benchmarks
 
 ```
-$ go test -bench . -benchmem -benchtime=10s
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkSendActor-4                	32171982	       359 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSendChannel-4              	22664540	       451 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseActor-4     	19856518	       597 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseChannel-4   	27455794	       432 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoopActor-4                	189523806	        58.3 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoopChannel-4              	167393191	        71.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBlock-4                    	 7359690	      1614 ns/op	     128 B/op	       2 allocs/op
+BenchmarkSendActor-4                	 3430962	       338 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendChannel-4              	 2260136	       454 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseActor-4     	 1958732	       593 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseChannel-4   	 2779339	       436 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopActor-4                	19433571	        57.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopChannel-4              	16147597	        71.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4                    	 1000000	      1591 ns/op	     128 B/op	       2 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	97.648s
+ok  	github.com/Arceliar/phony	10.547s
 ```
 
 If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing.
