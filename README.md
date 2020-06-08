@@ -22,21 +22,19 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 ## Benchmarks
 
 ```
+$ go test -bench . -benchmem -benchtime=10s
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkBlock-4             	 1000000	      1666 ns/op	     128 B/op	       2 allocs/op
-BenchmarkAct-4               	 3350524	       347 ns/op	       0 B/op	       0 allocs/op
-BenchmarkActFromSelf-4       	 3659487	       349 ns/op	      52 B/op	       3 allocs/op
-BenchmarkActFromNil-4        	19720999	        57.7 ns/op	       0 B/op	       0 allocs/op
-BenchmarkActFromMany-4       	 4216896	       278 ns/op	       2 B/op	       0 allocs/op
-BenchmarkActFromManyNil-4    	 4626250	       249 ns/op	       0 B/op	       0 allocs/op
-BenchmarkPingPong-4          	 1855938	       592 ns/op	       0 B/op	       0 allocs/op
-BenchmarkChannelMany-4       	 2298198	       470 ns/op	       0 B/op	       0 allocs/op
-BenchmarkChannel-4           	 1384917	       867 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBufferedChannel-4   	15319149	        72.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendActor-4                	32171982	       359 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendChannel-4              	22664540	       451 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseActor-4     	19856518	       597 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseChannel-4   	27455794	       432 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopActor-4                	189523806	        58.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopChannel-4              	167393191	        71.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4                    	 7359690	      1614 ns/op	     128 B/op	       2 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	16.584s
+ok  	github.com/Arceliar/phony	97.648s
 ```
 
 If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing.

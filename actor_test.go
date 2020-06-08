@@ -97,7 +97,7 @@ func BenchmarkRequestResponseActor(b *testing.B) {
 	pong = func() {
 		if idx < b.N {
 			idx++
-			pinger.Act(&ponger, ping)
+			pinger.Act(nil, ping) // nil -> escape unnecessary backpressure
 		} else {
 			close(done)
 		}

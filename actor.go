@@ -52,13 +52,14 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
 		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
+		return atomic.LoadUint32(&a.wait) != 0
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
 		a.head = q
 		a.restart()
+		return false
 	}
-	return atomic.LoadUint32(&a.wait) != 0
 }
 
 // Act adds a message to an Inbox, which will be executed by the inbox's Actor at some point in the future.
@@ -104,7 +105,6 @@ func (a *Inbox) run() {
 		}
 		running = a.advance()
 	}
-	atomic.StoreUint32(&a.wait, 0)
 }
 
 // returns true if we still have more work to do
@@ -116,7 +116,9 @@ func (a *Inbox) advance() bool {
 			// Move to the next message
 			head.put()
 			return true // more left to do
-		} else if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
+		}
+		atomic.StoreUint32(&a.wait, 0) // we're effectively shutting down at this point
+		if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
 			// The head is not the tail, but there was no head.next when we checked
 			// Somebody must be updating it right now, so try again
 			continue
