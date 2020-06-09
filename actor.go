@@ -1,6 +1,7 @@
 package phony
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -11,7 +12,7 @@ var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // A message in the queue
 type queueElem struct {
-	msg  interface{}    // func() or func() bool
+	msg  func()
 	next unsafe.Pointer // *queueElem, accessed atomically
 }
 
@@ -35,30 +36,25 @@ type Inbox struct {
 // It's meant so that structs which embed an Inbox can satisfy a mutually compatible interface for message passing.
 type Actor interface {
 	Act(Actor, func())
-	enqueue(interface{}) bool
+	enqueue(func())
 	restart()
 	advance() bool
 }
 
 // enqueue puts a message into the Inbox and returns true if backpressure should be applied.
 // If the inbox was empty, then the actor was not already running, so enqueue starts it.
-func (a *Inbox) enqueue(msg interface{}) bool {
-	if msg == nil {
-		panic("tried to send nil message")
-	}
+func (a *Inbox) enqueue(msg func()) {
 	q := pool.Get().(*queueElem)
 	*q = queueElem{msg: msg}
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
 		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
-		return atomic.LoadUint32(&a.wait) != 0
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
 		a.head = q
 		a.restart()
-		return false
 	}
 }
 
@@ -68,14 +64,14 @@ func (a *Inbox) enqueue(msg interface{}) bool {
 // This backpressue cause the sender stop processing messages at some point in the future until the receiver has caught up with the sent message.
 // A nil first argument is valid, but should only be used in cases where backpressure is known to be unnecessary, such as when an Actor sends a message to itself or when non-Actor code sends a message to an Actor (where it's used internally by Block).
 func (a *Inbox) Act(from Actor, action func()) {
-	if a.enqueue(action) && from != nil {
-		var s stop
-		a.enqueue(func() {
-			if !s.stop() && from.advance() {
-				from.restart()
-			}
-		})
-		from.enqueue(s.stop)
+	if action == nil {
+		panic("tried to send nil action")
+	}
+	a.enqueue(action)
+	if from != nil && atomic.LoadUint32(&a.wait) != 0 {
+		s := stop{from: from}
+		a.enqueue(s.signal)
+		from.enqueue(s.wait)
 	}
 }
 
@@ -92,50 +88,49 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
-	running := true
-	for running {
+	for running := true; running; running = a.advance() {
 		atomic.StoreUint32(&a.wait, 1)
-		switch msg := a.head.msg.(type) {
-		case func() bool: // used internally by backpressure
-			if msg() {
-				return
-			}
-		case func(): // all external use from Act
-			msg()
-		}
-		running = a.advance()
+		a.head.msg()
 	}
 }
 
 // returns true if we still have more work to do
-func (a *Inbox) advance() bool {
+func (a *Inbox) advance() (more bool) {
 	head := a.head
-	for {
-		a.head = (*queueElem)(atomic.LoadPointer(&head.next))
-		if a.head != nil {
-			// Move to the next message
-			head.put()
-			return true // more left to do
-		}
-		atomic.StoreUint32(&a.wait, 0) // we're effectively shutting down at this point
+	a.head = (*queueElem)(atomic.LoadPointer(&head.next))
+	if a.head == nil {
+		atomic.StoreUint32(&a.wait, 0) // We think we're done
 		if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
-			// The head is not the tail, but there was no head.next when we checked
-			// Somebody must be updating it right now, so try again
-			continue
-		} else {
-			// Head and tail are now both nil, our work here is done, exit
-			head.put()
-			return false // done processing messages
+			atomic.StoreUint32(&a.wait, 1) // We were wrong
+			for a.head == nil {
+				a.head = (*queueElem)(atomic.LoadPointer(&head.next))
+			}
+			more = true
 		}
+	} else {
+		more = true
 	}
+	head.put()
+	return more
 }
 
 func (a *Inbox) restart() {
 	go a.run()
 }
 
-type stop uint32
+type stop struct {
+	flag uint32
+	from Actor
+}
 
-func (s *stop) stop() bool {
-	return atomic.SwapUint32((*uint32)(s), 1) == 0
+func (s *stop) signal() {
+	if atomic.SwapUint32((*uint32)(&s.flag), 1) != 0 && s.from.advance() {
+		s.from.restart()
+	}
+}
+
+func (s *stop) wait() {
+	if atomic.SwapUint32((*uint32)(&s.flag), 1) == 0 {
+		runtime.Goexit()
+	}
 }

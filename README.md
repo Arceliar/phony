@@ -25,15 +25,15 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkSendActor-4                	 3430962	       338 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSendChannel-4              	 2260136	       454 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseActor-4     	 1958732	       593 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseChannel-4   	 2779339	       436 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoopActor-4                	19433571	        57.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoopChannel-4              	16147597	        71.8 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBlock-4                    	 1000000	      1591 ns/op	     128 B/op	       2 allocs/op
+BenchmarkSendActor-4                	 3613320	       344 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendChannel-4              	 2452216	       449 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseActor-4     	 1851586	       623 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseChannel-4   	 2816154	       430 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopActor-4                	21048585	        56.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopChannel-4              	15095918	        73.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4                    	 1000000	      1405 ns/op	     128 B/op	       2 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	10.547s
+ok  	github.com/Arceliar/phony	11.464s
 ```
 
 If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing.
