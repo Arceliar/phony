@@ -7,18 +7,14 @@ import (
 	"unsafe"
 )
 
-// pool of old messages, to avoid needing to allocate them every send
+// pool of old queueElems, to avoid needing to allocate them every send
+// considering how small a queueElem is, this may not be worth it
 var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // A message in the queue
 type queueElem struct {
 	msg  func()
 	next unsafe.Pointer // *queueElem, accessed atomically
-}
-
-func (q *queueElem) put() {
-	*q = queueElem{} // clear pointers so it doesn't block gc
-	pool.Put(q)
 }
 
 // Inbox is an ordered queue of messages which an Actor will process sequentially.
@@ -88,8 +84,8 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
+	atomic.StoreUint32(&a.wait, 1)
 	for running := true; running; running = a.advance() {
-		atomic.StoreUint32(&a.wait, 1)
 		a.head.msg()
 	}
 }
@@ -110,8 +106,9 @@ func (a *Inbox) advance() (more bool) {
 	} else {
 		more = true
 	}
-	head.put()
-	return more
+	*head = queueElem{} // clear fields
+	pool.Put(head)
+	return
 }
 
 func (a *Inbox) restart() {

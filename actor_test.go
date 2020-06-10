@@ -46,6 +46,46 @@ func TestAct(t *testing.T) {
 	}
 }
 
+func BenchmarkLoopActor(b *testing.B) {
+	var a Inbox
+	done := make(chan struct{})
+	idx := 0
+	var f func()
+	f = func() {
+		if idx < b.N {
+			idx++
+			a.Act(nil, f)
+		} else {
+			close(done)
+		}
+	}
+	a.Act(nil, f)
+	<-done
+}
+
+func BenchmarkLoopChannel(b *testing.B) {
+	ch := make(chan func(), 1)
+	defer close(ch)
+	go func() {
+		for f := range ch {
+			f()
+		}
+	}()
+	done := make(chan struct{})
+	idx := 0
+	var f func()
+	f = func() {
+		if idx < b.N {
+			idx++
+			ch <- f
+		} else {
+			close(done)
+		}
+	}
+	ch <- f
+	<-done
+}
+
 func BenchmarkSendActor(b *testing.B) {
 	var a, s Inbox
 	done := make(chan struct{})
@@ -90,17 +130,17 @@ func BenchmarkRequestResponseActor(b *testing.B) {
 		if idx < b.N {
 			idx++
 			ponger.Act(&pinger, pong)
+			pinger.Act(nil, ping) // loop asynchronously
 		} else {
-			close(done)
+			ponger.Act(&pinger, func() {
+				pinger.Act(nil, func() {
+					close(done)
+				})
+			})
 		}
 	}
 	pong = func() {
-		if idx < b.N {
-			idx++
-			pinger.Act(nil, ping) // nil -> escape unnecessary backpressure
-		} else {
-			close(done)
-		}
+		pinger.Act(nil, func() {}) // send a response without backpressure
 	}
 	pinger.Act(nil, ping)
 	<-done
@@ -114,22 +154,20 @@ func BenchmarkRequestResponseChannel(b *testing.B) {
 	defer close(toPong)
 	var ping func()
 	var pong func()
-	idx := 0
 	ping = func() {
-		if idx < b.N {
-			idx++
+		for idx := 0; idx < b.N; idx++ {
 			toPong <- pong
-		} else {
-			close(done)
+			f := <-toPing
+			f()
+		}
+		toPong <- func() {
+			toPing <- func() {
+				close(done)
+			}
 		}
 	}
 	pong = func() {
-		if idx < b.N {
-			idx++
-			toPing <- ping
-		} else {
-			close(done)
-		}
+		toPing <- func() {}
 	}
 	go func() {
 		for f := range toPing {
@@ -142,46 +180,6 @@ func BenchmarkRequestResponseChannel(b *testing.B) {
 		}
 	}()
 	toPing <- ping
-	<-done
-}
-
-func BenchmarkLoopActor(b *testing.B) {
-	var a Inbox
-	done := make(chan struct{})
-	idx := 0
-	var f func()
-	f = func() {
-		if idx < b.N {
-			idx++
-			a.Act(nil, f)
-		} else {
-			close(done)
-		}
-	}
-	a.Act(nil, f)
-	<-done
-}
-
-func BenchmarkLoopChannel(b *testing.B) {
-	ch := make(chan func(), 1)
-	defer close(ch)
-	go func() {
-		for f := range ch {
-			f()
-		}
-	}()
-	done := make(chan struct{})
-	idx := 0
-	var f func()
-	f = func() {
-		if idx < b.N {
-			idx++
-			ch <- f
-		} else {
-			close(done)
-		}
-	}
-	ch <- f
 	<-done
 }
 

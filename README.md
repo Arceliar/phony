@@ -1,23 +1,19 @@
 # Phony
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/Arceliar/phony)](https://goreportcard.com/report/github.com/Arceliar/phony)
+[![GoDoc](https://godoc.org/github.com/Arceliar/phony?status.svg)](https://godoc.org/github.com/Arceliar/phony)
 
-[godoc](https://godoc.org/github.com/Arceliar/phony)
+Phony is a Go implementation of shared memory actor model concurrency, inspired by the [Pony](https://ponylang.io/) programming language, with asynchronous causal message passing and backpressure.
 
-Phony is a *very* minimal actor model library for Go, inspired by the causal messaging system in the [Pony](https://ponylang.io/) programming language. This was written in a weekend as an exercise/test, to demonstrate how easily the Actor model can be implemented in Go, rather than as something intended for real-world use. Note that these are Actors running in the local process (as in Pony), not in other processes or on other machines (as in [Erlang](https://www.erlang.org/)).
-
-Phony was written in response to a few places where, in my opinion, idiomatic Go leaves a lot to be desired:
-
-1. Cyclic networks of goroutines that communicate over channels can deadlock, so you end up needing to either drop messages or write some manual buffering or scheduling logic (which is often error prone). Or you can rewrite your code to have no cycles, but sometimes the problem at hand is best modeled with the cycles. I don't really like any of these options. Go makes concurrency and communication *easy*, but combining them isn't *safe*.
-2. Goroutines that wait for work from a channel can leak if not signaled to shut down properly, and that shutdown mechanism needs to be manually implemented in most cases. Sometimes it's as easy as ranging over a channel and defering a close, other times it can be a lot more complicated. It's annoying that Go is garbage collected, but it's killer features (goroutines and channels) still need manual management to avoid leaks.
-3. I'm tired of writing infinite for loops over select statements. The code is not reusable and resists composition. Lets say I have some type which normally has a worker goroutine associated with it, sitting in a for loop over a select statement. If I want to embed that type in a new struct, which includes any additional channels that must be selected on, I need to rewrite the entire select loop. There's no mechanism to say "and also add this one behavior" without enumerating the full list of behaviors I want from my worker. This is depressing in light of how nicely things behave when a struct anonymously embeds a type, where fields and functions compose beautifully.
+TODO: explain the problems of goroutines+channels and what actors have to offer. a *short* explanation.
 
 ## Features
 
-1. Small implementation, only around 100 lines of code, excluding tests and examples. It depends only on a couple of commonly used standard library packages.
-2. `Actor`s are extremely lightweight. On `x86_64`, an actor only takes up 24 bytes for their `Inbox` plus 24 bytes per message. While not running, an `Actor` has no associated goroutines, and it can be garbage collected just like any other object when it is no longer needed, even for cycles of `Actor`s.
-3. Asynchronous message passing between `Actor`s. Unlike networks go goroutines communicating over channels, sending messages between `Actor`s cannot deadlock.
-4. Unbounded Inbox sizes are kept small in practice through backpressure and scheduling. `Actor`s that send to an overworked recipient will pause at a safe point in the future, and wait until signaled that the recipient has caught up. A paused `Actor` also has no associated goroutine or stack.
+1. Tiny package with less than 100 source lines of code, which depends only on builtin Go primitives and a few commonly used packages from the standard library.
+2. Tiny API: There 1 `interface` (`Actor`) with 1 exported function (`Act`), implemented by 1 `type` (`Inbox`). There's also 1 helper function (`Block`) that can be (*carefully*) used to export blocking APIs from `Actor` code.
+3. Easy to use. Implementing an `Actor` is as simple as embedding an `Inbox` into the `struct` the `Actor` should "own". Convering a synchronous function with no return argument into an asynchronous one is typically 2 lines of `gofmt`-style code (by wrapping the function body in a call to `Act`).
+4. `Actor`s are light weight. On `x86_64`, an idle `Actor`'s empty `Inbox` is 24 bytes, and the overhead per message is 16 bytes (plus whatever the size is of the closure and its captured variables). Idle `Actor`s have no associated goroutine. `Actor`s are garbage collected when no longer reachable -- there are no leaks.
+5. Code written in the `Actor` style (where `Actor`s do not call blocking functions) is deadlock-free.
 
 ## Benchmarks
 
@@ -25,15 +21,19 @@ Phony was written in response to a few places where, in my opinion, idiomatic Go
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkSendActor-4                	 3613320	       344 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSendChannel-4              	 2452216	       449 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseActor-4     	 1851586	       623 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseChannel-4   	 2816154	       430 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoopActor-4                	21048585	        56.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoopChannel-4              	15095918	        73.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBlock-4                    	 1000000	      1405 ns/op	     128 B/op	       2 allocs/op
+BenchmarkLoopActor-4                	18698307	        55.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopChannel-4              	16105111	        72.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendActor-4                	 3521646	       325 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendChannel-4              	 2271639	       446 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseActor-4     	 2788890	       412 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseChannel-4   	 1218379	       893 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4                    	  776150	      1572 ns/op	     128 B/op	       2 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	11.464s
+ok  	github.com/Arceliar/phony	10.295s
 ```
 
-If you're here then presumably you can read Go, so I'd recommend just checking the code to see exactly what the benchmarks are testing.
+Obligatory disclaimer: these are micro-benchmarks, not real world applications, so your mileage may vary. I suspect the performance differences between `Actor`s and goroutines+channels will be negligible in most applications.
+
+## Implementation Details
+
+- TODO
