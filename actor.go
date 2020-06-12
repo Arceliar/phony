@@ -52,7 +52,7 @@ func (a *Inbox) enqueue(msg func()) {
 // When one Actor sends a message to another, the sender is meant to provide itself as the first argument to this function.
 // If the sender argument is non-nil and the receiving Inbox has been flooded, then backpressure is applied to the sender.
 // This backpressue cause the sender stop processing messages at some point in the future until the receiver has caught up with the sent message.
-// A nil first argument is valid, but should only be used in cases where backpressure is known to be unnecessary, such as when an Actor sends a message to itself or when non-Actor code sends a message to an Actor (where it's used internally by Block).
+// A nil first argument is valid, but should only be used in cases where backpressure is known to be unnecessary, such as when an Actor sends a message to itself or sends a response to a request (where it's the request sender's fault if they're flooded by responses).
 func (a *Inbox) Act(from Actor, action func()) {
 	if action == nil {
 		panic("tried to send nil action")
