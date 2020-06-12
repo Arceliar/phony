@@ -2,14 +2,9 @@ package phony
 
 import (
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"unsafe"
 )
-
-// pool of old queueElems, to avoid needing to allocate them every send
-// considering how small a queueElem is, this may not be worth it
-var pool = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // A message in the queue
 type queueElem struct {
@@ -40,8 +35,7 @@ type Actor interface {
 // enqueue puts a message into the Inbox and returns true if backpressure should be applied.
 // If the inbox was empty, then the actor was not already running, so enqueue starts it.
 func (a *Inbox) enqueue(msg func()) {
-	q := pool.Get().(*queueElem)
-	*q = queueElem{msg: msg}
+	q := &queueElem{msg: msg}
 	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
@@ -114,8 +108,6 @@ func (a *Inbox) advance() (more bool) {
 	} else {
 		more = true
 	}
-	*head = queueElem{} // clear fields
-	pool.Put(head)
 	return
 }
 

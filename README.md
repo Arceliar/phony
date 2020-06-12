@@ -21,15 +21,15 @@ TODO: explain the problems of goroutines+channels and what actors have to offer.
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkLoopActor-4                	18698307	        55.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoopChannel-4              	16105111	        72.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSendActor-4                	 3521646	       325 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSendChannel-4              	 2271639	       446 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseActor-4     	 2788890	       412 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseChannel-4   	 1218379	       893 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBlock-4                    	  776150	      1572 ns/op	     128 B/op	       2 allocs/op
+BenchmarkLoopActor-4                	15733718	        74.0 ns/op	      16 B/op	       1 allocs/op
+BenchmarkLoopChannel-4              	15570544	        73.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendActor-4                	 3490488	       360 ns/op	      32 B/op	       2 allocs/op
+BenchmarkSendChannel-4              	 2604936	       439 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseActor-4     	 2308352	       530 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRequestResponseChannel-4   	 1000000	      1025 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4                    	  818607	      1599 ns/op	     144 B/op	       3 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	10.295s
+ok  	github.com/Arceliar/phony	10.880s
 ```
 
 Obligatory disclaimer: these are micro-benchmarks, not real world applications, so your mileage may vary. I suspect the performance differences between `Actor`s and goroutines+channels will be negligible in most applications.
