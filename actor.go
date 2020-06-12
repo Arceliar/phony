@@ -20,7 +20,7 @@ type queueElem struct {
 type Inbox struct {
 	head *queueElem     // Used carefully to avoid needing atomics
 	tail unsafe.Pointer // *queueElem, accessed atomically
-	busy uint32         // accessed atomically, 1 if sends should apply backpressure
+	busy uintptr        // accessed atomically, 1 if sends should apply backpressure
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -58,7 +58,7 @@ func (a *Inbox) Act(from Actor, action func()) {
 		panic("tried to send nil action")
 	}
 	a.enqueue(action)
-	if from != nil && atomic.LoadUint32(&a.busy) != 0 {
+	if from != nil && atomic.LoadUintptr(&a.busy) != 0 {
 		s := stop{from: from}
 		a.enqueue(s.signal)
 		from.enqueue(s.wait)
@@ -78,7 +78,7 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
-	atomic.StoreUint32(&a.busy, 1)
+	atomic.StoreUintptr(&a.busy, 1)
 	for running := true; running; running = a.advance() {
 		a.head.msg()
 	}
@@ -91,12 +91,12 @@ func (a *Inbox) advance() (more bool) {
 	if a.head == nil {
 		// We loaded the last message
 		// Unset busy and CAS the tail to nil to shut down
-		atomic.StoreUint32(&a.busy, 0)
+		atomic.StoreUintptr(&a.busy, 0)
 		if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
 			// Someone pushed to the list before we could CAS the tail to shut down
 			// This means we're effectively restarting at this point
 			// Set busy and load the next message
-			atomic.StoreUint32(&a.busy, 1)
+			atomic.StoreUintptr(&a.busy, 1)
 			for a.head == nil {
 				// Busy loop until the message is successfully loaded
 				// Gosched to avoid blocking the thread in the mean time
@@ -116,18 +116,18 @@ func (a *Inbox) restart() {
 }
 
 type stop struct {
-	flag uint32
+	flag uintptr
 	from Actor
 }
 
 func (s *stop) signal() {
-	if atomic.SwapUint32((*uint32)(&s.flag), 1) != 0 && s.from.advance() {
+	if atomic.SwapUintptr((*uintptr)(&s.flag), 1) != 0 && s.from.advance() {
 		s.from.restart()
 	}
 }
 
 func (s *stop) wait() {
-	if atomic.SwapUint32((*uint32)(&s.flag), 1) == 0 {
+	if atomic.SwapUintptr((*uintptr)(&s.flag), 1) == 0 {
 		runtime.Goexit()
 	}
 }
