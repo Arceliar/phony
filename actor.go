@@ -25,7 +25,7 @@ type queueElem struct {
 type Inbox struct {
 	head *queueElem     // Used carefully to avoid needing atomics
 	tail unsafe.Pointer // *queueElem, accessed atomically
-	wait uint32         // accessed atomically, 1 if sends should apply backpressure
+	busy uint32         // accessed atomically, 1 if sends should apply backpressure
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -64,7 +64,7 @@ func (a *Inbox) Act(from Actor, action func()) {
 		panic("tried to send nil action")
 	}
 	a.enqueue(action)
-	if from != nil && atomic.LoadUint32(&a.wait) != 0 {
+	if from != nil && atomic.LoadUint32(&a.busy) != 0 {
 		s := stop{from: from}
 		a.enqueue(s.signal)
 		from.enqueue(s.wait)
@@ -84,7 +84,7 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
-	atomic.StoreUint32(&a.wait, 1)
+	atomic.StoreUint32(&a.busy, 1)
 	for running := true; running; running = a.advance() {
 		a.head.msg()
 	}
@@ -95,10 +95,18 @@ func (a *Inbox) advance() (more bool) {
 	head := a.head
 	a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 	if a.head == nil {
-		atomic.StoreUint32(&a.wait, 0) // We think we're done
+		// We loaded the last message
+		// Unset busy and CAS the tail to nil to shut down
+		atomic.StoreUint32(&a.busy, 0)
 		if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
-			atomic.StoreUint32(&a.wait, 1) // We were wrong
+			// Someone pushed to the list before we could CAS the tail to shut down
+			// This means we're effectively restarting at this point
+			// Set busy and load the next message
+			atomic.StoreUint32(&a.busy, 1)
 			for a.head == nil {
+				// Busy loop until the message is successfully loaded
+				// Gosched to avoid blocking the thread in the mean time
+				runtime.Gosched()
 				a.head = (*queueElem)(atomic.LoadPointer(&head.next))
 			}
 			more = true
