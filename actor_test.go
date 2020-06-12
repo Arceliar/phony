@@ -46,6 +46,35 @@ func TestAct(t *testing.T) {
 	}
 }
 
+func TestPanicAct(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+	var a Inbox
+	a.Act(nil, nil)
+}
+
+func TestPanicBlockActor(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+	Block(nil, nil)
+}
+
+func TestPanicBlockAction(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("The code did not panic")
+		}
+	}()
+	var a Inbox
+	Block(&a, nil)
+}
+
 func BenchmarkLoopActor(b *testing.B) {
 	var a Inbox
 	done := make(chan struct{})

@@ -70,8 +70,13 @@ func (a *Inbox) Act(from Actor, action func()) {
 // Block meant exclusively as a convenience function for non-Actor code to send messages and wait for responses.
 // If an Actor calls Block, then it may cause a deadlock, so Act should always be used instead.
 func Block(actor Actor, action func()) {
+	if actor == nil {
+		panic("tried to send to nil actor")
+	} else if action == nil {
+		panic("tried to send nil action")
+	}
 	done := make(chan struct{})
-	actor.Act(nil, func() { action(); close(done) })
+	actor.enqueue(func() { action(); close(done) })
 	<-done
 }
 
