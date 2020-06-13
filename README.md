@@ -3,17 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Arceliar/phony)](https://goreportcard.com/report/github.com/Arceliar/phony)
 [![GoDoc](https://godoc.org/github.com/Arceliar/phony?status.svg)](https://godoc.org/github.com/Arceliar/phony)
 
-Phony is a Go implementation of shared memory actor model concurrency, inspired by the [Pony](https://ponylang.io/) programming language, with asynchronous causal message passing and backpressure.
-
-TODO: explain the problems of goroutines+channels and what actors have to offer. a *short* explanation.
-
-## Features
-
-1. Tiny package with less than 100 source lines of code, which depends only on builtin Go primitives and a few commonly used packages from the standard library.
-2. Tiny API: There 1 `interface` (`Actor`) with 1 exported function (`Act`), implemented by 1 `type` (`Inbox`). There's also 1 helper function (`Block`) that can be (*carefully*) used to export blocking APIs from `Actor` code.
-3. Easy to use. Implementing an `Actor` is as simple as embedding an `Inbox` into the `struct` the `Actor` should "own". Convering a synchronous function with no return argument into an asynchronous one is typically 2 lines of `gofmt`-style code (by wrapping the function body in a call to `Act`).
-4. `Actor`s are light weight. On `x86_64`, an idle `Actor`'s empty `Inbox` is 24 bytes, and the overhead per message is 16 bytes (plus whatever the size is of the closure and its captured variables). Idle `Actor`s have no associated goroutine. `Actor`s are garbage collected when no longer reachable -- there are no leaks.
-5. Code written in the `Actor` style (where `Actor`s do not call blocking functions) is deadlock-free.
+Phony is a [Pony](https://ponylang.io/)-inspired proof-of-concept implementation of shared-memory actor-model concurrency in the Go programming language. It has automatic goroutine management and uses asynchronous causal messaging to implement backpressure for `Actor`s within the Go runtime scheduler. This means programs written to use `Actor`s as their sole concurrency mechanism maintain small queue sizes in practice while being deadlock-free by construction. The down side is that the code needs to be written in an asynchronous style, which is generally not idiomatic to Go.
 
 ## Benchmarks
 
@@ -21,19 +11,43 @@ TODO: explain the problems of goroutines+channels and what actors have to offer.
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkLoopActor-4                	15733718	        74.0 ns/op	      16 B/op	       1 allocs/op
-BenchmarkLoopChannel-4              	15570544	        73.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSendActor-4                	 3490488	       360 ns/op	      32 B/op	       2 allocs/op
-BenchmarkSendChannel-4              	 2604936	       439 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseActor-4     	 2308352	       530 ns/op	      48 B/op	       3 allocs/op
-BenchmarkRequestResponseChannel-4   	 1000000	      1025 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBlock-4                    	  818607	      1599 ns/op	     144 B/op	       3 allocs/op
+BenchmarkLoopActor-4                	15617646	        71.1 ns/op	      16 B/op	       1 allocs/op
+BenchmarkLoopChannel-4              	14870767	        73.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendActor-4                	 3268095	       377 ns/op	      32 B/op	       2 allocs/op
+BenchmarkSendChannel-4              	 2598151	       442 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseActor-4     	 2256913	       527 ns/op	      48 B/op	       3 allocs/op
+BenchmarkRequestResponseChannel-4   	 1257068	       869 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-4                    	  780747	      1586 ns/op	     144 B/op	       3 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	10.880s
+ok  	github.com/Arceliar/phony	12.677s
 ```
 
-Obligatory disclaimer: these are micro-benchmarks, not real world applications, so your mileage may vary. I suspect the performance differences between `Actor`s and goroutines+channels will be negligible in most applications.
+These are microbenchmarks, but they seem to indicate that `Actor` messaging and goroutine+channel operations have comparable cost. I suspect that the difference is negligible in most applications.
 
 ## Implementation Details
 
-- TODO
+The code base is short, under 100 source lines of code as of writing, so reading the code is probably the best way to see *what* it does, but that doesn't necessarily explain *why* certain design decisions were made. To elaborate on a few things:
+
+- Phony only depends on packages from the standard library:
+    - `runtime` for some scheduler manipulation (through `Goexit()` and `Gosched()`).
+    - `sync/atomic` to implement the `Inbox`'s message queues.
+    - `unsafe` to use `atomic`'s `unsafe.Pointer` operations, which the paranoid should audit themselves for correctness.
+
+- Attempts were make to make embedding and composition work:
+    - `Actor` is an `interface` satisfied by the `Inbox` `struct`.
+    - The zero value of an `Inbox` is a fully initialized and ready-to-use `Actor`
+    - This means any `struct` that anonymously embeds an `Inbox` is an `Actor`
+    - `struct`s that don't want to export the `Actor` interface can embed it as a field instead.
+
+- `Inbox` was implemented with scalability in mind:
+    - The `Inbox` is basically an atomically updated single-consumer multiple-producer linked list.
+    - Pushing a message is wait-free -- no locks, spinlocks, or `CompareAndSwap` loops.
+    - Popping messages is wait-free in the normal case, with a busy loop (`LoadPointer`) if popping the last message lost a race with a push.
+    - When backpressure is required, it's implemented by sending two extra messages (one to the receiver of the original message, and one to the sender).
+
+- The implementation aims to be as lightweight as reasonably possible:
+    - On `x86_64`, an empty `Inbox` is 24 bytes, and messages overhead is 16 bytes, or half that on `x86`.
+    - An `Actor` with an empty `Inbox` has no goroutine.
+    - An `Actor` that has stopped due to backpressure also has no goroutine.
+    - This means that idle `Actor`s can be collected as garbage when they're no longer reachable, just like any other `struct`.
+

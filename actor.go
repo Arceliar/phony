@@ -18,9 +18,10 @@ type queueElem struct {
 // It is up to the user to ensure that memory is used safely, and that messages do not contain blocking operations.
 // An Inbox must not be copied after first use.
 type Inbox struct {
-	head *queueElem     // Used carefully to avoid needing atomics
-	tail unsafe.Pointer // *queueElem, accessed atomically
-	busy uintptr        // accessed atomically, 1 if sends should apply backpressure
+	noCopy noCopy
+	head   *queueElem     // Used carefully to avoid needing atomics
+	tail   unsafe.Pointer // *queueElem, accessed atomically
+	busy   uintptr        // accessed atomically, 1 if sends should apply backpressure
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -136,3 +137,9 @@ func (s *stop) wait() {
 		runtime.Goexit()
 	}
 }
+
+// noCopy implements the sync.Locker interface so go vet can catch unsafe copying
+type noCopy struct{}
+
+func (n *noCopy) Lock()   {}
+func (n *noCopy) Unlock() {}
