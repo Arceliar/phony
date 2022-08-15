@@ -3,13 +3,12 @@ package phony
 import (
 	"runtime"
 	"sync/atomic"
-	"unsafe"
 )
 
 // A message in the queue
 type queueElem struct {
 	msg  func()
-	next unsafe.Pointer // *queueElem, accessed atomically
+	next atomic.Pointer[queueElem] // *queueElem, accessed atomically
 }
 
 // Inbox is an ordered queue of messages which an Actor will process sequentially.
@@ -19,9 +18,9 @@ type queueElem struct {
 // An Inbox must not be copied after first use.
 type Inbox struct {
 	noCopy noCopy
-	head   *queueElem     // Used carefully to avoid needing atomics
-	tail   unsafe.Pointer // *queueElem, accessed atomically
-	busy   uintptr        // accessed atomically, 1 if sends should apply backpressure
+	head   *queueElem                // Used carefully to avoid needing atomics
+	tail   atomic.Pointer[queueElem] // *queueElem, accessed atomically
+	busy   atomic.Bool               // accessed atomically, 1 if sends should apply backpressure
 }
 
 // Actor is the interface for Actors, based on their ability to receive a message from another Actor.
@@ -37,10 +36,10 @@ type Actor interface {
 // If the inbox was empty, then the actor was not already running, so enqueue starts it.
 func (a *Inbox) enqueue(msg func()) {
 	q := &queueElem{msg: msg}
-	tail := (*queueElem)(atomic.SwapPointer(&a.tail, unsafe.Pointer(q)))
+	tail := a.tail.Swap(q)
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
-		atomic.StorePointer(&tail.next, unsafe.Pointer(q))
+		tail.next.Store(q)
 	} else {
 		// No old tail existed, so no worker is currently running
 		// Update the head to point to q, then start the worker
@@ -59,7 +58,7 @@ func (a *Inbox) Act(from Actor, action func()) {
 		panic("tried to send nil action")
 	}
 	a.enqueue(action)
-	if from != nil && atomic.LoadUintptr(&a.busy) != 0 {
+	if from != nil && a.busy.Load() {
 		s := stop{from: from}
 		a.enqueue(s.signal)
 		from.enqueue(s.wait)
@@ -84,7 +83,7 @@ func Block(actor Actor, action func()) {
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
 // The worker goroutine processes messages from the Inbox until empty, and then exits.
 func (a *Inbox) run() {
-	atomic.StoreUintptr(&a.busy, 1)
+	a.busy.Store(true)
 	for running := true; running; running = a.advance() {
 		a.head.msg()
 	}
@@ -93,21 +92,21 @@ func (a *Inbox) run() {
 // returns true if we still have more work to do
 func (a *Inbox) advance() (more bool) {
 	head := a.head
-	a.head = (*queueElem)(atomic.LoadPointer(&head.next))
+	a.head = head.next.Load()
 	if a.head == nil {
 		// We loaded the last message
 		// Unset busy and CAS the tail to nil to shut down
-		atomic.StoreUintptr(&a.busy, 0)
-		if !atomic.CompareAndSwapPointer(&a.tail, unsafe.Pointer(head), nil) {
+		a.busy.Store(false)
+		if !a.tail.CompareAndSwap(head, nil) {
 			// Someone pushed to the list before we could CAS the tail to shut down
 			// This means we're effectively restarting at this point
 			// Set busy and load the next message
-			atomic.StoreUintptr(&a.busy, 1)
+			a.busy.Store(true)
 			for a.head == nil {
 				// Busy loop until the message is successfully loaded
 				// Gosched to avoid blocking the thread in the mean time
 				runtime.Gosched()
-				a.head = (*queueElem)(atomic.LoadPointer(&head.next))
+				a.head = head.next.Load()
 			}
 			more = true
 		}
@@ -122,18 +121,18 @@ func (a *Inbox) restart() {
 }
 
 type stop struct {
-	flag uintptr
+	flag atomic.Bool
 	from Actor
 }
 
 func (s *stop) signal() {
-	if atomic.SwapUintptr((*uintptr)(&s.flag), 1) != 0 && s.from.advance() {
+	if s.flag.Swap(true) && s.from.advance() {
 		s.from.restart()
 	}
 }
 
 func (s *stop) wait() {
-	if atomic.SwapUintptr((*uintptr)(&s.flag), 1) == 0 {
+	if !s.flag.Swap(true) {
 		runtime.Goexit()
 	}
 }
