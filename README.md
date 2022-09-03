@@ -11,15 +11,16 @@ Phony is a [Pony](https://ponylang.io/)-inspired proof-of-concept implementation
 goos: linux
 goarch: amd64
 pkg: github.com/Arceliar/phony
-BenchmarkLoopActor-4                	15617646	        71.1 ns/op	      16 B/op	       1 allocs/op
-BenchmarkLoopChannel-4              	14870767	        73.0 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSendActor-4                	 3268095	       377 ns/op	      32 B/op	       2 allocs/op
-BenchmarkSendChannel-4              	 2598151	       442 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRequestResponseActor-4     	 2256913	       527 ns/op	      48 B/op	       3 allocs/op
-BenchmarkRequestResponseChannel-4   	 1257068	       869 ns/op	       0 B/op	       0 allocs/op
-BenchmarkBlock-4                    	  780747	      1586 ns/op	     144 B/op	       3 allocs/op
+cpu: Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz
+BenchmarkLoopActor-8                	38022962	        29.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoopChannel-8              	29876192	        38.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendActor-8                	14235270	        82.94 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSendChannel-8              	 8372472	       143.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseActor-8     	10360731	       116.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRequestResponseChannel-8   	 4226506	       285.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBlock-8                    	 2662929	       450.9 ns/op	      32 B/op	       2 allocs/op
 PASS
-ok  	github.com/Arceliar/phony	12.677s
+ok  	github.com/Arceliar/phony	9.463s
 ```
 
 These are microbenchmarks, but they seem to indicate that `Actor` messaging and goroutine+channel operations have comparable cost. I suspect that the difference is negligible in most applications.
@@ -29,9 +30,9 @@ These are microbenchmarks, but they seem to indicate that `Actor` messaging and 
 The code base is short, under 100 source lines of code as of writing, so reading the code is probably the best way to see *what* it does, but that doesn't necessarily explain *why* certain design decisions were made. To elaborate on a few things:
 
 - Phony only depends on packages from the standard library:
-    - `runtime` for some scheduler manipulation (through `Goexit()` and `Gosched()`).
+    - `runtime` for some scheduler manipulation (`Gosched()`).
+    - `sync` for `sync.Pool`, to minimize allocations.
     - `sync/atomic` to implement the `Inbox`'s message queues.
-    - `unsafe` to use `atomic`'s `unsafe.Pointer` operations, which the paranoid should audit themselves for correctness.
 
 - Attempts were make to make embedding and composition work:
     - `Actor` is an `interface` satisfied by the `Inbox` `struct`.
@@ -48,6 +49,5 @@ The code base is short, under 100 source lines of code as of writing, so reading
 - The implementation aims to be as lightweight as reasonably possible:
     - On `x86_64`, an empty `Inbox` is 24 bytes, and messages overhead is 16 bytes, or half that on `x86`.
     - An `Actor` with an empty `Inbox` has no goroutine.
-    - An `Actor` that has stopped due to backpressure also has no goroutine.
     - This means that idle `Actor`s can be collected as garbage when they're no longer reachable, just like any other `struct`.
 

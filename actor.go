@@ -2,8 +2,12 @@ package phony
 
 import (
 	"runtime"
+	"sync"
 	"sync/atomic"
 )
+
+var stops = sync.Pool{New: func() interface{} { return make(chan struct{}, 1) }}
+var elems = sync.Pool{New: func() interface{} { return new(queueElem) }}
 
 // A message in the queue
 type queueElem struct {
@@ -35,7 +39,8 @@ type Actor interface {
 // enqueue puts a message into the Inbox and returns true if backpressure should be applied.
 // If the inbox was empty, then the actor was not already running, so enqueue starts it.
 func (a *Inbox) enqueue(msg func()) {
-	q := &queueElem{msg: msg}
+	q := elems.Get().(*queueElem)
+	*q = queueElem{msg: msg}
 	tail := a.tail.Swap(q)
 	if tail != nil {
 		//An old tail exists, so update its next pointer to reference q
@@ -59,9 +64,12 @@ func (a *Inbox) Act(from Actor, action func()) {
 	}
 	a.enqueue(action)
 	if from != nil && a.busy.Load() {
-		s := stop{from: from}
-		a.enqueue(s.signal)
-		from.enqueue(s.wait)
+		done := stops.Get().(chan struct{})
+		a.enqueue(func() { done <- struct{}{} })
+		from.enqueue(func() {
+			<-done
+			stops.Put(done)
+		})
 	}
 }
 
@@ -75,9 +83,11 @@ func Block(actor Actor, action func()) {
 	} else if action == nil {
 		panic("tried to send nil action")
 	}
-	done := make(chan struct{})
-	actor.enqueue(func() { action(); close(done) })
+	done := stops.Get().(chan struct{})
+	actor.enqueue(action)
+	actor.enqueue(func() { done <- struct{}{} })
 	<-done
+	stops.Put(done)
 }
 
 // run is executed when a message is placed in an empty Inbox, and launches a worker goroutine.
@@ -113,6 +123,8 @@ func (a *Inbox) advance() (more bool) {
 	} else {
 		more = true
 	}
+	*head = queueElem{}
+	elems.Put(head)
 	return
 }
 
@@ -120,24 +132,7 @@ func (a *Inbox) restart() {
 	go a.run()
 }
 
-type stop struct {
-	flag atomic.Bool
-	from Actor
-}
-
-func (s *stop) signal() {
-	if s.flag.Swap(true) && s.from.advance() {
-		s.from.restart()
-	}
-}
-
-func (s *stop) wait() {
-	if !s.flag.Swap(true) {
-		runtime.Goexit()
-	}
-}
-
-// noCopy implements the sync.Locker interface so go vet can catch unsafe copying
+// noCopy implements the sync.Locker interface, so go vet can catch unsafe copying
 type noCopy struct{}
 
 func (n *noCopy) Lock()   {}
